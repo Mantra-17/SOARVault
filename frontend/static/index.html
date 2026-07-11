@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SOAR Console — Incident Containment Engine</title>
+<link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+  <div class="app-shell">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark">◈</span>
+        <div class="brand-text">
+          <strong>SOAR</strong>
+          <span>Containment Engine</span>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <button class="nav-item is-active" data-view="dashboard">
+          <span class="nav-dot"></span> Dashboard
+        </button>
+        <button class="nav-item" data-view="cases">
+          <span class="nav-dot"></span> Cases
+        </button>
+        <button class="nav-item" data-view="alerts">
+          <span class="nav-dot"></span> Alert Queue
+        </button>
+        <button class="nav-item" data-view="playbooks">
+          <span class="nav-dot"></span> Playbooks
+        </button>
+        <button class="nav-item" data-view="integrations">
+          <span class="nav-dot"></span> Integrations
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="status-pill">
+          <span class="pulse"></span> Ingestion live
+        </div>
+        <div class="user-card" id="user-card">
+          <div class="user-avatar" id="user-avatar">—</div>
+          <div class="user-meta">
+            <strong id="user-name">—</strong>
+            <span id="user-role">—</span>
+          </div>
+          <button id="logout-btn" title="Sign out">⏻</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="main">
+
+      <header class="topbar">
+        <div>
+          <h1 id="view-title">SOC Overview</h1>
+          <p class="subtitle">Enrich → Score → Contain, end to end</p>
+        </div>
+
+        <div class="role-switch" title="Role comes from your login session">
+          <label>Signed in as</label>
+          <span class="role-badge" id="role-badge">—</span>
+        </div>
+      </header>
+
+      <!-- KPI strip -->
+      <section class="kpi-strip">
+        <div class="mttr-card">
+          <svg viewBox="0 0 140 140" class="mttr-ring">
+            <circle cx="70" cy="70" r="60" class="ring-track" />
+            <circle cx="70" cy="70" r="60" class="ring-progress" id="mttr-ring-progress" />
+          </svg>
+          <div class="mttr-readout">
+            <span id="mttr-value">—</span>
+            <small>avg MTTR (sec)</small>
+          </div>
+          <div class="mttr-target">Target &lt; <strong>5.0s</strong></div>
+        </div>
+
+        <div class="kpi-card">
+          <span class="kpi-label">Alerts ingested (24h)</span>
+          <span class="kpi-value" id="kpi-ingested">—</span>
+          <span class="kpi-foot">across all connected SIEMs</span>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-label">Auto-contained (24h)</span>
+          <span class="kpi-value" id="kpi-contained">—</span>
+          <span class="kpi-foot">zero human touch required</span>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-label">Analyst hours saved (24h)</span>
+          <span class="kpi-value" id="kpi-hours">—</span>
+          <span class="kpi-foot">reclaimed for threat hunting</span>
+        </div>
+      </section>
+
+      <!-- Views -->
+      <section id="view-dashboard" class="view is-active">
+        <div class="panel-grid">
+          <div class="panel">
+            <div class="panel-head">
+              <h2>Active Cases</h2>
+              <span class="panel-tag">auto-updates on containment</span>
+            </div>
+            <div id="cases-table" class="cases-table"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h2>Incoming Alert Queue</h2>
+              <span class="panel-tag">pre-enrichment</span>
+            </div>
+            <div id="alerts-list" class="alerts-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-cases" class="view">
+        <div class="panel panel-wide">
+          <div class="panel-head">
+            <h2>All Cases</h2>
+          </div>
+          <div id="cases-table-full" class="cases-table"></div>
+        </div>
+      </section>
+
+      <section id="view-alerts" class="view">
+        <div class="panel panel-wide">
+          <div class="panel-head">
+            <h2>Alert Queue</h2>
+          </div>
+          <div id="alerts-list-full" class="alerts-list"></div>
+        </div>
+      </section>
+
+      <section id="view-playbooks" class="view">
+        <div class="panel panel-wide">
+          <div class="panel-head">
+            <h2>Containment Playbooks</h2>
+            <span class="panel-tag" id="playbook-edit-hint">read-only for your role</span>
+          </div>
+          <div id="playbooks-grid" class="playbooks-grid"></div>
+        </div>
+      </section>
+
+      <section id="view-integrations" class="view">
+        <div class="panel panel-wide">
+          <div class="panel-head">
+            <h2>Connected Systems</h2>
+            <span class="panel-tag">SIEM sources · enrichment APIs · orchestration targets</span>
+          </div>
+          <div id="integrations-grid" class="integrations-grid"></div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- Case detail modal -->
+  <div class="modal-overlay" id="case-modal-overlay">
+    <div class="modal">
+      <button class="modal-close" data-close-modal>×</button>
+      <div id="case-modal-body"></div>
+    </div>
+  </div>
+
+  <!-- Alert detail modal -->
+  <div class="modal-overlay" id="alert-modal-overlay">
+    <div class="modal">
+      <button class="modal-close" data-close-modal>×</button>
+      <div id="alert-modal-body"></div>
+    </div>
+  </div>
+
+  <!-- Playbook editor modal -->
+  <div class="modal-overlay" id="playbook-modal-overlay">
+    <div class="modal">
+      <button class="modal-close" data-close-modal>×</button>
+      <div id="playbook-modal-body"></div>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
