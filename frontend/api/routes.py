@@ -14,8 +14,8 @@ enrichment / orchestration modules once teammates land that code.
 
 from flask import Blueprint, jsonify, request
 from datetime import datetime, timedelta
-from dashboard.case_manager import list_cases, get_case
-from dashboard.rbac import get_role, has_permission
+from frontend.case_manager import list_cases, get_case
+from frontend.rbac import get_role, has_permission
 
 api = Blueprint("api", __name__)
 

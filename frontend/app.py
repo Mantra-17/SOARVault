@@ -9,7 +9,7 @@ Then open http://127.0.0.1:5000
 """
 
 from flask import Flask, send_from_directory
-from dashboard.api.routes import api
+from frontend.api.routes import api
 
 app = Flask(__name__, static_folder="static", static_url_path="")
 app.register_blueprint(api, url_prefix="/api")
