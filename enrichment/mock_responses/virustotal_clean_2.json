@@ -1,0 +1,22 @@
+{
+  "data": {
+    "id": "4a7f5a898b8a9134a6e8ab3c13f68310c85c2b2a67bc45dfdfa299d63630f9a2",
+    "type": "file",
+    "attributes": {
+      "meaningful_name": "document.pdf",
+      "size": 45120,
+      "type_description": "PDF document",
+      "reputation": 5,
+      "last_analysis_stats": {
+        "harmless": 55,
+        "type-unsupported": 0,
+        "suspicious": 0,
+        "confirmed-timeout": 0,
+        "timeout": 0,
+        "failure": 0,
+        "malicious": 0,
+        "undetected": 18
+      }
+    }
+  }
+}
