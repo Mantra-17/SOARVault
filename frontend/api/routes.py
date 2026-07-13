@@ -15,15 +15,9 @@ enrichment / orchestration modules once teammates land that code.
 from flask import Blueprint, jsonify, request
 from datetime import datetime, timedelta
 from frontend.case_manager import list_cases, get_case
-from frontend.rbac import get_role, has_permission
+from frontend.rbac import get_role, has_permission, authenticate
 
 api = Blueprint("api", __name__)
-
-# Mock user directory — swap for real SSO/identity provider later.
-MOCK_USERS = {
-    "asha.soc": {"password": "demo123", "role": "soc_analyst", "name": "Asha Rao"},
-    "rohit.eng": {"password": "demo123", "role": "security_engineer", "name": "Rohit Sharma"},
-}
 
 MOCK_INTEGRATIONS = [
     {"id": "splunk", "name": "Splunk SIEM", "type": "alert_source", "status": "connected", "last_event": "8s ago"},
@@ -155,15 +149,14 @@ def login():
     body = request.get_json(silent=True) or {}
     username = body.get("username", "")
     password = body.get("password", "")
-    user = MOCK_USERS.get(username)
-    if not user or user["password"] != password:
+    session = authenticate(username, password)
+    if not session:
         return jsonify({"error": "invalid credentials"}), 401
-    role = get_role(user["role"])
+    role = get_role(session["role"])
     return jsonify({
-        "username": username,
-        "name": user["name"],
-        "role": user["role"],
-        "role_label": role["label"],
+        "username": session["username"],
+        "role": session["role"],
+        "role_label": session["role_label"],
         "permissions": role["permissions"],
     })
 
@@ -175,9 +168,9 @@ def integrations():
 
 @api.put("/playbooks/<playbook_id>")
 def update_playbook(playbook_id):
-    role = request.headers.get("X-Role", "soc_analyst")
-    if not has_permission(role, "edit_playbook"):
-        return jsonify({"error": "forbidden — security_engineer role required"}), 403
+    role = request.headers.get("X-Role", "analyst")
+    if not has_permission(role, "edit"):
+        return jsonify({"error": "forbidden — admin role required to edit playbooks"}), 403
 
     body = request.get_json(silent=True) or {}
     playbook = next((p for p in MOCK_PLAYBOOKS if p["id"] == playbook_id), None)

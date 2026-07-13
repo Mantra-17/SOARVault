@@ -270,7 +270,7 @@ async function init() {
   if (!session) return; // redirected to login
 
   renderUserCard(session);
-  const canEditPlaybooks = (session.permissions || []).includes("edit_playbook");
+ const canEditPlaybooks = (session.permissions || []).includes("edit");
   document.getElementById("playbook-edit-hint").textContent = canEditPlaybooks
     ? "editable — playbook changes require peer review"
     : "read-only for your role";

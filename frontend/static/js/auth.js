@@ -4,12 +4,13 @@
  */
 
 const DEMO_USERS = {
-  "asha.soc": { password: "demo123", role: "soc_analyst", role_label: "SOC Analyst", name: "Asha Rao",
-    permissions: ["view_dashboard", "view_alerts", "acknowledge_alert", "escalate_alert", "view_playbooks"] },
-  "rohit.eng": { password: "demo123", role: "security_engineer", role_label: "Security Engineer", name: "Rohit Sharma",
-    permissions: ["view_dashboard", "view_alerts", "acknowledge_alert", "escalate_alert", "view_playbooks", "edit_playbook", "publish_playbook", "trigger_manual_containment"] },
+  "asha.analyst": { password: "demo123", role: "analyst", role_label: "Analyst", name: "Asha Rao",
+    permissions: ["view"] },
+  "rohit.senior": { password: "demo123", role: "senior_analyst", role_label: "Senior Analyst", name: "Rohit Sharma",
+    permissions: ["view", "approve"] },
+  "admin": { password: "demo123", role: "admin", role_label: "Admin", name: "Admin User",
+    permissions: ["view", "approve", "edit", "delete", "manage_users"] },
 };
-
 function storeSession(session) {
   localStorage.setItem("soar_session", JSON.stringify(session));
 }
