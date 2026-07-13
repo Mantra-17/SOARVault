@@ -1,0 +1,22 @@
+{
+  "data": {
+    "id": "b10a8db164e0754105b7a99be72e3fe5",
+    "type": "file",
+    "attributes": {
+      "meaningful_name": "setup.msi",
+      "size": 1572864,
+      "type_description": "MSI installer",
+      "reputation": 25,
+      "last_analysis_stats": {
+        "harmless": 62,
+        "type-unsupported": 0,
+        "suspicious": 0,
+        "confirmed-timeout": 0,
+        "timeout": 0,
+        "failure": 0,
+        "malicious": 0,
+        "undetected": 10
+      }
+    }
+  }
+}

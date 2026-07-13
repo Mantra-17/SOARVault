@@ -1,0 +1,22 @@
+{
+  "data": {
+    "id": "84c82835a5d21bbcf75a61706d8ab549",
+    "type": "file",
+    "attributes": {
+      "meaningful_name": "invoice_payment.exe",
+      "size": 102400,
+      "type_description": "Win32 EXE",
+      "reputation": -45,
+      "last_analysis_stats": {
+        "harmless": 0,
+        "type-unsupported": 0,
+        "suspicious": 2,
+        "confirmed-timeout": 0,
+        "timeout": 0,
+        "failure": 0,
+        "malicious": 35,
+        "undetected": 37
+      }
+    }
+  }
+}
