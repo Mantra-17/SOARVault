@@ -417,3 +417,69 @@ body {
 
 .case-row, .alert-row { cursor: pointer; }
 .case-row:hover, .alert-row:hover { border-color: var(--cyan); }
+
+
+/* ---------- Topbar (header): logo, role badge, logout ---------- */
+.topbar-left { display: flex; align-items: center; gap: 16px; }
+.topbar-logo { font-size: 13px; font-weight: 700; letter-spacing: 0.03em; color: var(--cyan); white-space: nowrap; }
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+.logout-btn {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 6px;
+  padding: 7px 12px;
+  font-size: 11.5px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.logout-btn:hover { color: var(--red); border-color: var(--red); }
+
+/* ---------- Sidebar stats panel ---------- */
+.stats-panel {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.stats-title { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 2px; }
+.stat-row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
+.stat-row span { color: var(--text-muted); }
+.stat-row strong { font-family: var(--font-mono); font-size: 13px; }
+.stat-critical { color: var(--red); }
+.stat-resolved { color: var(--green); }
+.stat-pending { color: var(--amber); }
+
+/* ---------- Incidents table ---------- */
+.incidents-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.incidents-table thead th {
+  text-align: left;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.incidents-table tbody td {
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.incidents-table tbody tr:hover { background: var(--surface-raised); }
+.incidents-table td.id-cell { font-family: var(--font-mono); color: var(--text-muted); }
+.incidents-table td.time-cell { font-family: var(--font-mono); color: var(--text-muted); white-space: nowrap; }
+.incidents-table .row-actions { display: flex; gap: 6px; }
+.row-actions button {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  color: var(--cyan);
+  border-radius: 6px;
+  padding: 4px 9px;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.row-actions button:hover { border-color: var(--cyan); }
