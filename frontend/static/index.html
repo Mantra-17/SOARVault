@@ -11,13 +11,13 @@
   <div class="app-shell">
 
     <!-- Sidebar -->
-    <aside class="sidebar">
-      <div class="brand">
+<div class="brand">
         <span class="brand-mark">◈</span>
         <div class="brand-text">
-          <strong>SOAR</strong>
+          <strong>SOARVault</strong>
           <span>Containment Engine</span>
         </div>
+      </div>
       </div>
 
       <nav class="nav">
@@ -38,6 +38,27 @@
         </button>
       </nav>
 
+      <!-- Stats panel -->
+      <div class="stats-panel">
+        <span class="stats-title">Incident Stats</span>
+        <div class="stat-row">
+          <span>Total incidents</span>
+          <strong id="stat-total">—</strong>
+        </div>
+        <div class="stat-row">
+          <span>Critical</span>
+          <strong id="stat-critical" class="stat-critical">—</strong>
+        </div>
+        <div class="stat-row">
+          <span>Auto-resolved</span>
+          <strong id="stat-resolved" class="stat-resolved">—</strong>
+        </div>
+        <div class="stat-row">
+          <span>Pending</span>
+          <strong id="stat-pending" class="stat-pending">—</strong>
+        </div>
+      </div>
+
       <div class="sidebar-footer">
         <div class="status-pill">
           <span class="pulse"></span> Ingestion live
@@ -48,7 +69,6 @@
             <strong id="user-name">—</strong>
             <span id="user-role">—</span>
           </div>
-          <button id="logout-btn" title="Sign out">⏻</button>
         </div>
       </div>
     </aside>
@@ -56,18 +76,20 @@
     <!-- Main -->
     <div class="main">
 
-      <header class="topbar">
-        <div>
-          <h1 id="view-title">SOC Overview</h1>
-          <p class="subtitle">Enrich → Score → Contain, end to end</p>
+ <header class="topbar">
+        <div class="topbar-left">
+          <span class="topbar-logo">◈ SOARVault</span>
+          <div>
+            <h1 id="view-title">SOC Overview</h1>
+            <p class="subtitle">Enrich → Score → Contain, end to end</p>
+          </div>
         </div>
 
-        <div class="role-switch" title="Role comes from your login session">
-          <label>Signed in as</label>
-          <span class="role-badge" id="role-badge">—</span>
+        <div class="topbar-right">
+          <span class="role-badge" id="role-badge" title="Role comes from your login session">—</span>
+          <button id="logout-btn" class="logout-btn" title="Sign out">Sign out ⏻</button>
         </div>
       </header>
-
       <!-- KPI strip -->
       <section class="kpi-strip">
         <div class="mttr-card">
@@ -120,12 +142,25 @@
         </div>
       </section>
 
-      <section id="view-cases" class="view">
+   <section id="view-cases" class="view">
         <div class="panel panel-wide">
           <div class="panel-head">
-            <h2>All Cases</h2>
+            <h2>Incidents</h2>
+            <span class="panel-tag">ID · Time · Type · Severity · Status · Actions</span>
           </div>
-          <div id="cases-table-full" class="cases-table"></div>
+          <table class="incidents-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Time</th>
+                <th>Type</th>
+                <th>Severity</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="incidents-table-body"></tbody>
+          </table>
         </div>
       </section>
 

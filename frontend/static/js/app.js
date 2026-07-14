@@ -105,6 +105,18 @@ function renderKPIs(metrics) {
   document.getElementById("kpi-hours").textContent = `${metrics.analyst_hours_saved_24h}h`;
 }
 
+function renderStats(cases) {
+  const total = cases.length;
+  const critical = cases.filter((c) => c.severity === "critical").length;
+  const autoResolved = cases.filter((c) => c.status === "resolved_auto" || c.status === "contained").length;
+  const pending = cases.filter((c) => c.status === "open" || c.status === "in_progress").length;
+
+  document.getElementById("stat-total").textContent = total;
+  document.getElementById("stat-critical").textContent = critical;
+  document.getElementById("stat-resolved").textContent = autoResolved;
+  document.getElementById("stat-pending").textContent = pending;
+}
+
 // ---------- Row templates ----------
 
 function caseRow(c) {
@@ -134,6 +146,31 @@ function alertRow(a) {
       </div>
     </div>`;
 }
+function timeAgo(iso) {
+  if (!iso) return "—";
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const mins = Math.round(diffMs / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  return `${Math.round(mins / 60)}h ago`;
+}
+
+function incidentRow(c) {
+  const canAck = c.status === "open" || c.status === "in_progress";
+  return `
+    <tr data-case-id="${c.id}">
+      <td class="id-cell">${c.id}</td>
+      <td class="time-cell">${timeAgo(c.created_at || c.opened_at)}</td>
+      <td>${(c.ioc_type || "—").toUpperCase()}</td>
+      <td><span class="chip ${c.severity}">${c.severity}</span></td>
+      <td><span class="status-tag ${c.status}">${c.status.replace("_", " ")}</span></td>
+      <td class="row-actions">
+        <button data-view-case="${c.id}">View</button>
+        ${canAck ? `<button data-ack-case="${c.id}">Acknowledge</button>` : ""}
+      </td>
+    </tr>`;
+}
+
 
 function playbookCard(p, canEdit) {
   const editBtn = canEdit
@@ -283,12 +320,13 @@ async function init() {
     fetchJSON("/api/integrations", FALLBACK.integrations),
   ]);
 
-  renderMTTR(metrics);
+renderMTTR(metrics);
   renderKPIs(metrics);
+  renderStats(cases);
 
   const casesHTML = cases.map(caseRow).join("");
   document.getElementById("cases-table").innerHTML = casesHTML;
-  document.getElementById("cases-table-full").innerHTML = casesHTML;
+  document.getElementById("incidents-table-body").innerHTML = cases.map(incidentRow).join("");
 
   const alertsHTML = alerts.map(alertRow).join("");
   document.getElementById("alerts-list").innerHTML = alertsHTML;
@@ -307,6 +345,26 @@ async function init() {
 
   // Case row -> detail modal
   document.body.addEventListener("click", async (e) => {
+    const viewBtn = e.target.closest("[data-view-case]");
+    if (viewBtn) {
+      const detail = await fetchJSON(
+        `/api/cases/${viewBtn.dataset.viewCase}`,
+        cases.find((c) => c.id === viewBtn.dataset.viewCase)
+      );
+      openModal("case-modal-overlay", "case-modal-body", caseDetailHTML(detail));
+      return;
+    }
+
+    const ackBtn = e.target.closest("[data-ack-case]");
+    if (ackBtn) {
+      const id = ackBtn.dataset.ackCase;
+      const updated = await fetchJSON(`/api/cases/${id}/ack`, null, { method: "POST" });
+      const idx = cases.findIndex((c) => c.id === id);
+      if (idx > -1) cases[idx].status = (updated && updated.status) || "acknowledged";
+      document.getElementById("incidents-table-body").innerHTML = cases.map(incidentRow).join("");
+      renderStats(cases);
+      return;
+    }
     const caseEl = e.target.closest("[data-case-id]");
     if (caseEl) {
       const detail = await fetchJSON(
