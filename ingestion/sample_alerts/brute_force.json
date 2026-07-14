@@ -1,0 +1,23 @@
+{
+  "_comment": "Simulated CrowdStrike Falcon brute-force detection webhook",
+  "title": "SSH Brute Force Detected",
+  "description": "1 427 failed SSH login attempts from 185.234.218.20 against host prod-api-01 over 90 seconds.",
+  "type": "ssh_brute_force",
+  "severity": "high",
+  "rule_id": "CROW-BF-0042",
+  "timestamp": "2024-06-15T08:22:11Z",
+  "source": "CrowdStrike Falcon",
+  "network": {
+    "src_ip": "185.234.218.20",
+    "dst_ip": "10.0.1.45",
+    "src_port": 58231,
+    "dst_port": 22,
+    "protocol": "tcp"
+  },
+  "host": {
+    "hostname": "prod-api-01",
+    "cloud_instance_id": "i-0abc123def456gh78",
+    "cloud_region": "ap-south-1",
+    "cloud_provider": "aws"
+  }
+}
