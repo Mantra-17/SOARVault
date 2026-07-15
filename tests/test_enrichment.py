@@ -160,3 +160,128 @@ def test_get_geolocation_http_error(mock_get):
     res = get_geolocation("8.8.8.8")
     assert res["country"] is None
     assert "Connection timed out" in res["error"]
+
+
+# --- VirusTotal Tests ---
+
+from enrichment.virustotal import check_hash, check_domain
+
+def test_check_hash_mock_specific_file():
+    """Test that check_hash loads a specific mock file when requested."""
+    # When query contains specific name pattern (e.g., clean_1 or malicious_2)
+    res_clean_1 = check_hash("virustotal_clean_1")
+    assert res_clean_1["malicious_votes"] == 0
+    assert res_clean_1["harmless_votes"] == 70
+    assert res_clean_1["suspicious_votes"] == 0
+    assert res_clean_1["verdict"] == "CLEAN"
+
+    res_mal_2 = check_hash("malicious_2")
+    assert res_mal_2["malicious_votes"] == 35
+    assert res_mal_2["harmless_votes"] == 0
+    assert res_mal_2["suspicious_votes"] == 2
+    assert res_mal_2["verdict"] == "MALICIOUS"
+
+
+def test_check_hash_mock_fallback_deterministic():
+    """Test that check_hash falls back to stable hash for random inputs."""
+    res_a = check_hash("some-random-file-hash-1")
+    res_b = check_hash("some-random-file-hash-1")
+    
+    assert res_a == res_b
+    assert "malicious_votes" in res_a
+    assert "harmless_votes" in res_a
+    assert "suspicious_votes" in res_a
+    assert "verdict" in res_a
+
+
+@mock.patch("enrichment.virustotal.VIRUSTOTAL_API_KEY", "test-api-key")
+@mock.patch("httpx.get")
+def test_check_hash_real_api_success(mock_get):
+    """Test that check_hash calls the real API when the key is available."""
+    mock_resp = mock.Mock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "data": {
+            "id": "mock-hash",
+            "type": "file",
+            "attributes": {
+                "last_analysis_stats": {
+                    "harmless": 45,
+                    "malicious": 2,
+                    "suspicious": 1
+                }
+            }
+        }
+    }
+    mock_get.return_value = mock_resp
+
+    res = check_hash("mock-hash")
+    
+    mock_get.assert_called_once_with(
+        "https://www.virustotal.com/api/v3/files/mock-hash",
+        headers={"accept": "application/json", "x-apikey": "test-api-key"}
+    )
+    
+    assert res == {
+        "malicious_votes": 2,
+        "harmless_votes": 45,
+        "suspicious_votes": 1,
+        "verdict": "MALICIOUS"
+    }
+
+
+def test_check_domain_mock_specific_file():
+    """Test that check_domain loads a specific mock file when requested."""
+    res_clean_3 = check_domain("virustotal_clean_3")
+    assert res_clean_3["malicious_votes"] == 0
+    assert res_clean_3["harmless_votes"] == 62
+    assert res_clean_3["suspicious_votes"] == 0
+    assert res_clean_3["verdict"] == "CLEAN"
+
+
+def test_check_domain_mock_fallback_deterministic():
+    """Test that check_domain falls back to stable hash for random domains."""
+    res_a = check_domain("google.com")
+    res_b = check_domain("google.com")
+    
+    assert res_a == res_b
+    assert "malicious_votes" in res_a
+    assert "harmless_votes" in res_a
+    assert "suspicious_votes" in res_a
+    assert "verdict" in res_a
+
+
+@mock.patch("enrichment.virustotal.VIRUSTOTAL_API_KEY", "test-api-key")
+@mock.patch("httpx.get")
+def test_check_domain_real_api_success(mock_get):
+    """Test that check_domain calls the real API when the key is available."""
+    mock_resp = mock.Mock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "data": {
+            "id": "example.com",
+            "type": "domain",
+            "attributes": {
+                "last_analysis_stats": {
+                    "harmless": 80,
+                    "malicious": 0,
+                    "suspicious": 0
+                }
+            }
+        }
+    }
+    mock_get.return_value = mock_resp
+
+    res = check_domain("example.com")
+    
+    mock_get.assert_called_once_with(
+        "https://www.virustotal.com/api/v3/domains/example.com",
+        headers={"accept": "application/json", "x-apikey": "test-api-key"}
+    )
+    
+    assert res == {
+        "malicious_votes": 0,
+        "harmless_votes": 80,
+        "suspicious_votes": 0,
+        "verdict": "CLEAN"
+    }
