@@ -285,3 +285,109 @@ def test_check_domain_real_api_success(mock_get):
         "suspicious_votes": 0,
         "verdict": "CLEAN"
     }
+
+
+# --- Risk Scorer Tests ---
+
+from enrichment.risk_scorer import calculate_risk_score, get_risk_label
+from ingestion.schema import EnrichmentData
+
+def test_calculate_risk_score_dictionary():
+    """Test calculate_risk_score with various dictionary configurations."""
+    # 1. Low Risk Case
+    data_low = {
+        "abuse_score": 10,
+        "vt_malicious": 0,
+        "vt_total": 70,
+        "geo_country_code": "US"
+    }
+    score = calculate_risk_score(data_low)
+    assert score == 5
+    assert get_risk_label(score) == "LOW"
+
+    # 2. Medium Risk Case (with country risk)
+    data_med = {
+        "abuse_score": 50,
+        "vt_malicious": 30,
+        "vt_total": 60,
+        "geo_country_code": "RU"
+    }
+    score = calculate_risk_score(data_med)
+    # 50 * 0.5 + (30/60 * 100) * 0.3 + 100 * 0.2 = 25 + 15 + 20 = 60
+    assert score == 60
+    assert get_risk_label(score) == "MEDIUM"
+
+    # 3. High Risk Case
+    data_high = {
+        "abuse_score": 80,
+        "vt_malicious": 10,
+        "vt_total": 10,
+        "geo_country_code": "US"
+    }
+    score = calculate_risk_score(data_high)
+    # 80 * 0.5 + (10/10 * 100) * 0.3 + 0 = 40 + 30 + 0 = 70
+    assert score == 70
+    assert get_risk_label(score) == "HIGH"
+
+    # 4. Critical Risk Case
+    data_crit = {
+        "abuse_score": 90,
+        "vt_malicious": 60,
+        "vt_total": 70,
+        "geo_country_code": "CN"
+    }
+    score = calculate_risk_score(data_crit)
+    # 90 * 0.5 + (60/70 * 100) * 0.3 + 100 * 0.2 = 45 + 25.714 + 20 = 90.714 -> rounds to 91
+    assert score == 91
+    assert get_risk_label(score) == "CRITICAL"
+
+
+def test_calculate_risk_score_pydantic():
+    """Test calculate_risk_score with a Pydantic EnrichmentData object."""
+    data = EnrichmentData(
+        abuse_score=40,
+        vt_malicious=5,
+        vt_total=10,
+        geo_country_code="RU"
+    )
+    score = calculate_risk_score(data)
+    # 40 * 0.5 + (5/10 * 100) * 0.3 + 100 * 0.2 = 20 + 15 + 20 = 55
+    assert score == 55
+    assert get_risk_label(score) == "MEDIUM"
+
+
+def test_calculate_risk_score_edge_cases():
+    """Test risk scorer under various edge cases and missing fields."""
+    # None input
+    assert calculate_risk_score(None) == 0
+    assert get_risk_label(0) == "LOW"
+
+    # Empty dictionary
+    assert calculate_risk_score({}) == 0
+
+    # Missing vt_total, but vt_malicious > 0 (defaults to 70 total count)
+    data_no_total = {
+        "abuse_score": 80,
+        "vt_malicious": 35,
+        "geo_country_code": "US"
+    }
+    score = calculate_risk_score(data_no_total)
+    # 80 * 0.5 + (35/70 * 100) * 0.3 + 0 = 40 + 15 + 0 = 55
+    assert score == 55
+
+    # Direct country_risk override
+    data_override = {
+        "abuse_score": 0,
+        "vt_malicious": 0,
+        "country_risk": 50
+    }
+    assert calculate_risk_score(data_override) == 10  # 50 * 0.2 = 10
+
+    # Normalize country code input (lowercase, whitespace)
+    data_country_norm = {
+        "abuse_score": 0,
+        "vt_malicious": 0,
+        "country_code": "  cn  "
+    }
+    assert calculate_risk_score(data_country_norm) == 20  # 100 * 0.2 = 20
+
