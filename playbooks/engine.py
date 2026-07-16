@@ -23,6 +23,17 @@ class PlaybookEngine:
     def __init__(self):
         # Maps alert types to playbook classes/implementations
         self._routes: Dict[str, Any] = {}
+        self._register_defaults()
+
+    def _register_defaults(self):
+        try:
+            from .brute_force import BruteForcePlaybook
+            from .malware import MalwarePlaybook
+            self.register_playbook("brute_force", BruteForcePlaybook)
+            self.register_playbook("malware", MalwarePlaybook)
+        except ImportError:
+            pass
+
 
     def register_playbook(self, alert_type: str, playbook_cls: Any) -> None:
         """Registers a playbook class or instance for a given alert type."""

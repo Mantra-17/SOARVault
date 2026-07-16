@@ -3,7 +3,7 @@ import random
 from datetime import datetime
 from . import ActionResult
 
-def block_ip(ip: str) -> ActionResult:
+def block_ip(ip: str, simulate_fail: bool = False) -> ActionResult:
     """
     Mock firewall API call to block an IP address with a realistic 50-200ms delay.
     """
@@ -12,7 +12,7 @@ def block_ip(ip: str) -> ActionResult:
     # Simulate network delay (50-200ms)
     time.sleep(random.uniform(0.05, 0.20))
     
-    status = "success" if random.random() > 0.05 else "failed"
+    status = "failed" if (simulate_fail or ip == "error") else "success"
     duration_ms = int((time.time() - start_time) * 1000)
     
     return ActionResult(
@@ -23,3 +23,4 @@ def block_ip(ip: str) -> ActionResult:
         duration_ms=duration_ms,
         reversible=True
     )
+
