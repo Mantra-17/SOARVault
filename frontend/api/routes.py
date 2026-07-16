@@ -2,11 +2,20 @@
 api/routes.py — Mock REST API for the frontend to consume.
 
 Endpoints:
-  GET /api/metrics        -> MTTR + volume KPIs for the header strip
-  GET /api/alerts         -> incoming raw SIEM alerts (pre-enrichment)
-  GET /api/cases          -> enriched, actioned incident cases
-  GET /api/playbooks      -> available containment playbooks
-  POST /api/cases/<id>/ack -> acknowledge a case (SOC Analyst action)
+  GET  /api/metrics         -> MTTR + volume KPIs for the header strip
+  GET  /api/alerts          -> incoming raw SIEM alerts (pre-enrichment)
+  GET  /api/cases           -> enriched, actioned incident cases (alias of /incidents)
+  GET  /api/cases/<id>      -> single case detail (alias of /incidents/<id>)
+  GET  /api/playbooks       -> available containment playbooks
+  POST /api/cases/<id>/ack  -> acknowledge a case (SOC Analyst action)
+  POST /api/auth/login      -> validate credentials, return role (alias of /login)
+  GET  /api/integrations    -> connected SIEM/enrichment/orchestration systems
+  PUT  /api/playbooks/<id>  -> edit a playbook (admin only)
+
+  GET  /api/incidents       -> list all incidents, filters: ?severity=, ?status=, ?limit=
+  GET  /api/incidents/<id>  -> single incident details
+  GET  /api/stats           -> total, critical, resolved, pending counts
+  POST /api/login           -> validate credentials, return role
 
 Replace the in-memory data with calls into the real ingestion /
 enrichment / orchestration modules once teammates land that code.
@@ -129,6 +138,62 @@ def case_detail(case_id):
         return jsonify({"error": "case not found"}), 404
     return jsonify(case)
 
+
+# ---------------------------------------------------------------------
+# Checklist-spec endpoints (/incidents, /stats, /login).
+# These are the canonical names used going forward; /cases, /metrics
+# and /auth/login above are kept as aliases so nothing already wired
+# up in the frontend breaks.
+# ---------------------------------------------------------------------
+
+@api.get("/incidents")
+def list_incidents():
+    """GET /api/incidents — list all incidents, with optional filters.
+
+    Query params:
+      severity  e.g. ?severity=critical
+      status    e.g. ?status=in_progress
+      limit     e.g. ?limit=10  (default 50)
+    """
+    severity = request.args.get("severity")
+    status = request.args.get("status")
+    limit = request.args.get("limit", default=50, type=int)
+
+    incidents = list_cases(limit=limit, severity=severity)
+    if status:
+        incidents = [i for i in incidents if i.get("status") == status]
+    return jsonify(incidents)
+
+
+@api.get("/incidents/<incident_id>")
+def incident_detail(incident_id):
+    """GET /api/incidents/:id — single incident details."""
+    incident = get_case(incident_id)
+    if not incident:
+        return jsonify({"error": "incident not found"}), 404
+    return jsonify(incident)
+
+
+@api.get("/stats")
+def stats():
+    """GET /api/stats — total, critical, resolved, pending counts."""
+    all_cases = list_cases(limit=10_000)
+    total = len(all_cases)
+    critical = sum(1 for c in all_cases if c.get("severity") == "critical")
+    resolved = sum(1 for c in all_cases if c.get("status") in ("resolved_auto", "contained"))
+    pending = sum(1 for c in all_cases if c.get("status") in ("open", "in_progress"))
+    return jsonify({
+        "total": total,
+        "critical": critical,
+        "resolved": resolved,
+        "pending": pending,
+    })
+
+
+@api.post("/login")
+def login_v2():
+    """POST /api/login — validate credentials, return role."""
+    return login()
 
 @api.get("/playbooks")
 def playbooks():
