@@ -3,6 +3,7 @@ Unit tests for enrichment modules: abuseipdb and geoip.
 """
 
 import os
+from datetime import datetime, timezone
 from unittest import mock
 import pytest
 import httpx
@@ -390,4 +391,190 @@ def test_calculate_risk_score_edge_cases():
         "country_code": "  cn  "
     }
     assert calculate_risk_score(data_country_norm) == 20  # 100 * 0.2 = 20
+
+
+# --- Enricher Tests ---
+
+from enrichment.enricher import enrich_alert
+from ingestion.schema import NormalizedAlert, NetworkContext, IoC, Severity, AlertType, AlertStatus, EnrichmentData
+
+@mock.patch("enrichment.enricher.query_ip")
+@mock.patch("enrichment.enricher.get_geolocation")
+@mock.patch("enrichment.enricher.check_domain")
+@mock.patch("enrichment.enricher.check_hash")
+def test_enrich_alert_dict(mock_check_hash, mock_check_domain, mock_get_geo, mock_query_ip):
+    # Set up mock returns
+    mock_query_ip.return_value = {
+        "abuse_score": 40,
+        "total_reports": 5,
+        "country": "DE",
+        "isp": "Test ISP",
+        "last_reported_at": "2026-07-10T14:22:18+00:00"
+    }
+    mock_get_geo.return_value = {
+        "country": "Germany",
+        "country_code": "DE",
+        "region": "Bavaria",
+        "city": "Munich",
+        "latitude": 48.1351,
+        "longitude": 11.5820,
+        "isp": "Test ISP",
+        "org": "Test Org",
+        "asn": "AS12345 Test ASN",
+        "timezone": "Europe/Berlin"
+    }
+    mock_check_domain.return_value = {
+        "malicious_votes": 2,
+        "harmless_votes": 60,
+        "suspicious_votes": 0,
+        "verdict": "MALICIOUS"
+    }
+    mock_check_hash.return_value = {
+        "malicious_votes": 5,
+        "harmless_votes": 50,
+        "suspicious_votes": 1,
+        "verdict": "MALICIOUS"
+    }
+
+    # Define a dict-based alert
+    alert_dict = {
+        "title": "Brute Force Attempt",
+        "severity": "medium",
+        "status": "new",
+        "network": {
+            "src_ip": "192.168.1.100",
+            "dst_ip": "10.0.0.5"
+        },
+        "iocs": [
+            {"type": "domain", "value": "malicious.com"},
+            {"type": "file_hash", "value": "a1b2c3d4e5f6"}
+        ],
+        "timeline": []
+    }
+
+    enriched = enrich_alert(alert_dict)
+
+    # Assertions
+    assert isinstance(enriched, dict)
+    assert enriched["status"] == "triaged"
+    
+    # Check enrichment block
+    enrich_data = enriched["enrichment"]
+    assert enrich_data["abuse_score"] == 40
+    assert enrich_data["vt_malicious"] == 7  # 2 + 5
+    assert enrich_data["vt_total"] == 118   # (2+60+0) + (5+50+1)
+    assert enrich_data["geo_country_code"] == "DE"
+    assert enrich_data["geo_asn_org"] == "AS12345 Test ASN"
+    
+    # Calculated risk score check:
+    # abuse_score = 40 (weight 0.5 -> 20)
+    # vt_score: vt_malicious=7, vt_total=118 -> (7 / 118) * 100 = 5.9322% (weight 0.3 -> 1.7797)
+    # country_risk_score = 0 (DE not in high risk, weight 0.2 -> 0)
+    # Total = 20 + 1.78 = 21.78 -> rounds to 22
+    assert enrich_data["risk_score"] == 22.0
+
+    # Check network geo enrichment
+    assert enriched["network"]["geo_country"] == "Germany"
+    assert enriched["network"]["geo_city"] == "Munich"
+    assert enriched["network"]["asn"] == "AS12345 Test ASN"
+
+    # Check timeline
+    assert len(enriched["timeline"]) == 1
+    assert enriched["timeline"][0]["actor"] == "enrichment.enricher"
+    assert enriched["timeline"][0]["action"] == "alert_enriched"
+
+
+@mock.patch("enrichment.enricher.query_ip")
+@mock.patch("enrichment.enricher.get_geolocation")
+@mock.patch("enrichment.enricher.check_domain")
+@mock.patch("enrichment.enricher.check_hash")
+def test_enrich_alert_pydantic(mock_check_hash, mock_check_domain, mock_get_geo, mock_query_ip):
+    # Set up mock returns
+    mock_query_ip.return_value = {"abuse_score": 80}
+    mock_get_geo.return_value = {
+        "country": "Russian Federation",
+        "country_code": "RU",
+        "asn": "AS9999",
+    }
+    # No VT IoCs in this test alert
+    
+    # Define a Pydantic NormalizedAlert
+    alert = NormalizedAlert(
+        title="Suspicious Login",
+        severity=Severity.HIGH,
+        status=AlertStatus.NEW,
+        detected_at=datetime.now(timezone.utc),
+        network=NetworkContext(src_ip="95.165.1.1"),
+        iocs=[]
+    )
+
+    enriched = enrich_alert(alert)
+
+    # Assertions
+    assert isinstance(enriched, NormalizedAlert)
+    assert enriched.status == AlertStatus.TRIAGED
+    
+    # Check enrichment block
+    assert enriched.enrichment is not None
+    assert enriched.enrichment.abuse_score == 80
+    assert enriched.enrichment.geo_country_code == "RU"
+    # Calculated risk score check:
+    # abuse_score = 80 (weight 0.5 -> 40)
+    # vt_score = 0 (weight 0.3 -> 0)
+    # country_risk_score = 100 (RU is high risk, weight 0.2 -> 20)
+    # Total = 40 + 0 + 20 = 60
+    assert enriched.enrichment.risk_score == 60.0
+
+    # Check network geo enrichment
+    assert enriched.network.geo_country == "Russian Federation"
+    assert enriched.network.asn == "AS9999"
+
+    # Check timeline
+    assert len(enriched.timeline) == 1  # 1 from enricher
+    assert enriched.timeline[-1]["actor"] == "enrichment.enricher"
+
+
+@mock.patch("enrichment.enricher.query_ip")
+@mock.patch("enrichment.enricher.get_geolocation")
+@mock.patch("enrichment.enricher.check_domain")
+@mock.patch("enrichment.enricher.check_hash")
+def test_enrich_alert_error_handling(mock_check_hash, mock_check_domain, mock_get_geo, mock_query_ip):
+    # Make queries raise errors
+    mock_query_ip.side_effect = RuntimeError("AbuseIPDB service down")
+    mock_get_geo.side_effect = Exception("GeoIP lookup timeout")
+    mock_check_domain.side_effect = Exception("VT domain limit exceeded")
+    mock_check_hash.return_value = {
+        "malicious_votes": 10,
+        "harmless_votes": 0,
+        "suspicious_votes": 0,
+        "verdict": "MALICIOUS"
+    }
+
+    alert_dict = {
+        "title": "Malicious Hash Detected",
+        "network": {"src_ip": "8.8.8.8"},
+        "iocs": [
+            {"type": "domain", "value": "broken-link.com"},
+            {"type": "file_hash", "value": "deadbeef"}
+        ]
+    }
+
+    # Should complete without raising exceptions
+    enriched = enrich_alert(alert_dict)
+
+    assert enriched["status"] == "triaged"
+    enrich_data = enriched["enrichment"]
+    
+    # Check what succeeded
+    assert enrich_data["vt_malicious"] == 10
+    # Check what failed is None
+    assert enrich_data["abuse_score"] is None
+    assert enrich_data["geo_country_code"] is None
+    # Calculated risk score check:
+    # abuse_score = 0 (default fallback, weight 0.5 -> 0)
+    # vt_score: 10 malicious, 10 total -> 100% (weight 0.3 -> 30)
+    # country_risk_score = 0 (weight 0.2 -> 0)
+    # Total = 30
+    assert enrich_data["risk_score"] == 30.0
+
 
