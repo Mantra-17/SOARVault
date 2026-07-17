@@ -2,6 +2,7 @@ import unittest
 from playbooks.engine import PlaybookEngine, PlaybookResult
 from playbooks.brute_force import BruteForcePlaybook
 from playbooks.malware import MalwarePlaybook
+from playbooks.ddos import DDoSPlaybook
 from playbooks.mock_edr import MockEDR
 from playbooks.actions import ActionResult
 
@@ -14,6 +15,7 @@ class TestPlaybooks(unittest.TestCase):
         self.engine = PlaybookEngine()
         self.brute_force = BruteForcePlaybook()
         self.malware = MalwarePlaybook()
+        self.ddos = DDoSPlaybook()
         self.edr = MockEDR()
 
     def test_brute_force_high_risk_triggers_block_ip(self):
@@ -110,8 +112,42 @@ class TestPlaybooks(unittest.TestCase):
         status_after = self.edr.get_status("HOST-500")
         self.assertEqual(status_after["status"], "isolated")
 
+    def test_ddos_high_risk_triggers_block_and_rate_limit(self):
+        """Test: score 75 (>70) triggers block_ip, rate_limit, and send_notification."""
+        alert = {"type": "ddos", "source_ip": "203.0.113.50", "limit": "5000/min"}
+        result = self.ddos.execute(alert, risk_score=75.0)
+        
+        actions = [a.action for a in result.actions_taken]
+        self.assertIn("block_ip", actions)
+        self.assertIn("rate_limit", actions)
+        self.assertIn("send_notification", actions)
+        
+        rate_action = next(a for a in result.actions_taken if a.action == "rate_limit")
+        self.assertEqual(rate_action.target, "203.0.113.50")
+        self.assertEqual(getattr(rate_action, "limit", None), "5000/min")
+
+    def test_ddos_medium_risk_needs_approval(self):
+        """Test: score 60 (50-70) sends notification only for approval."""
+        alert = {"type": "ddos", "source_ip": "203.0.113.51"}
+        result = self.ddos.execute(alert, risk_score=60.0)
+        
+        actions = [a.action for a in result.actions_taken]
+        self.assertIn("send_notification", actions)
+        self.assertNotIn("block_ip", actions)
+        self.assertNotIn("rate_limit", actions)
+
+    def test_ddos_low_risk_only_logs(self):
+        """Test: score 35 (<50) only logs, taking no response actions."""
+        alert = {"type": "ddos", "source_ip": "203.0.113.52"}
+        result = self.ddos.execute(alert, risk_score=35.0)
+        
+        actions = [a.action for a in result.actions_taken]
+        self.assertIn("log", actions)
+        self.assertNotIn("block_ip", actions)
+        self.assertNotIn("rate_limit", actions)
+
     def test_playbook_engine_routing_and_execution(self):
-        """Test: PlaybookEngine routes correctly to BruteForce and Malware playbooks."""
+        """Test: PlaybookEngine routes correctly to BruteForce, Malware, and DDoS playbooks."""
         alert_bf = {"type": "brute_force", "source_ip": "172.16.0.5"}
         res_bf = self.engine.execute(alert_bf, risk_score=95.0)
         self.assertEqual(res_bf.status, "success")
@@ -121,6 +157,11 @@ class TestPlaybooks(unittest.TestCase):
         res_mw = self.engine.execute(alert_mw, risk_score=95.0)
         self.assertEqual(res_mw.status, "success")
         self.assertTrue(any(a.action == "isolate_host" for a in res_mw.actions_taken))
+
+        alert_ddos = {"type": "ddos", "source_ip": "172.16.0.7"}
+        res_ddos = self.engine.execute(alert_ddos, risk_score=85.0)
+        self.assertEqual(res_ddos.status, "success")
+        self.assertTrue(any(a.action == "rate_limit" for a in res_ddos.actions_taken))
 
 if __name__ == "__main__":
     unittest.main()
