@@ -4,8 +4,8 @@ Frontend + lightweight mock backend (Rohit's branch: frontend)
 
 Run:
     pip install flask --break-system-packages
-    python app.py
-Then open http://127.0.0.1:5000
+    python -m frontend.app
+Then open http://127.0.0.1:5002
 """
 
 from flask import Flask, send_from_directory
@@ -21,4 +21,4 @@ def index():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5002)
