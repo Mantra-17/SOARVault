@@ -30,9 +30,11 @@ class PlaybookEngine:
             from .brute_force import BruteForcePlaybook
             from .malware import MalwarePlaybook
             from .ddos import DDoSPlaybook
+            from .insider_threat import InsiderThreatPlaybook
             self.register_playbook("brute_force", BruteForcePlaybook)
             self.register_playbook("malware", MalwarePlaybook)
             self.register_playbook("ddos", DDoSPlaybook)
+            self.register_playbook("insider_threat", InsiderThreatPlaybook)
         except ImportError:
             pass
 
