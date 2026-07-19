@@ -33,6 +33,20 @@ def test_query_ip_mock_specific_file():
     assert res_100["abuse_score"] == 100
 
 
+def test_known_bad_ip_returns_high_score():
+    """Test: known bad IP returns high score."""
+    res = query_ip("192.168.1.100")
+    assert res["abuse_score"] == 100
+    assert res["abuse_score"] >= 70
+
+
+def test_clean_ip_returns_low_score():
+    """Test: clean IP returns low score."""
+    res = query_ip("abuseipdb_score_0_1")
+    assert res["abuse_score"] == 0
+    assert res["abuse_score"] <= 10
+
+
 def test_query_ip_mock_fallback_deterministic():
     """Test that query_ip falls back to stable hash for random IPs."""
     res_a = query_ip("8.8.8.8")
@@ -229,6 +243,12 @@ def test_check_hash_real_api_success(mock_get):
         "suspicious_votes": 1,
         "verdict": "MALICIOUS"
     }
+
+
+def test_malicious_hash_returns_malicious_verdict():
+    """Test: malicious hash returns MALICIOUS verdict."""
+    res = check_hash("virustotal_malicious_1")
+    assert res["verdict"] == "MALICIOUS"
 
 
 def test_check_domain_mock_specific_file():
