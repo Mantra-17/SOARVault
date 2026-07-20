@@ -1,0 +1,22 @@
+{
+  "data": {
+    "id": "24d00b4295d03712e499f59f41865c910bcf4749f7e189871676d1e3e2264624",
+    "type": "file",
+    "attributes": {
+      "meaningful_name": "wannacry.exe",
+      "size": 530944,
+      "type_description": "Win32 EXE",
+      "reputation": -100,
+      "last_analysis_stats": {
+        "harmless": 0,
+        "type-unsupported": 0,
+        "suspicious": 0,
+        "confirmed-timeout": 0,
+        "timeout": 0,
+        "failure": 0,
+        "malicious": 68,
+        "undetected": 4
+      }
+    }
+  }
+}

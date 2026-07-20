@@ -1,0 +1,22 @@
+{
+  "data": {
+    "id": "f50e7040445d4a46db5d7c7c001cf4a090e9d6d5a11c1e5d958564b7de93a216",
+    "type": "file",
+    "attributes": {
+      "meaningful_name": "clean_app.exe",
+      "size": 204850,
+      "type_description": "Win32 EXE",
+      "reputation": 10,
+      "last_analysis_stats": {
+        "harmless": 70,
+        "type-unsupported": 0,
+        "suspicious": 0,
+        "confirmed-timeout": 0,
+        "timeout": 0,
+        "failure": 0,
+        "malicious": 0,
+        "undetected": 5
+      }
+    }
+  }
+}
