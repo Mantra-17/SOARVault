@@ -8,6 +8,7 @@ import re
 import hashlib
 import httpx
 from dotenv import load_dotenv
+from enrichment.cache import cache_response, get_cached_response
 
 load_dotenv()
 
@@ -16,9 +17,14 @@ ABUSEIPDB_API_KEY = os.getenv("ABUSEIPDB_API_KEY")
 def query_ip(ip: str) -> dict:
     """
     Query AbuseIPDB for an IP address.
+    Checks the local TTL cache (1 hour) first to prevent duplicate API hits.
     If ABUSEIPDB_API_KEY env variable is available, query the real API.
     Otherwise, load a deterministic mock response from mock_responses/.
     """
+    cached_result = get_cached_response(ip)
+    if cached_result is not None:
+        return cached_result
+
     if ABUSEIPDB_API_KEY:
         url = "https://api.abuseipdb.com/api/v2/check"
         headers = {
@@ -32,7 +38,7 @@ def query_ip(ip: str) -> dict:
         response = httpx.get(url, headers=headers, params=params)
         response.raise_for_status()
         data = response.json().get("data", {})
-        return {
+        result = {
             "abuse_score": data.get("abuseConfidenceScore"),
             "total_reports": data.get("totalReports"),
             "country": data.get("countryCode"),
@@ -100,10 +106,13 @@ def query_ip(ip: str) -> dict:
         with open(file_path, "r", encoding="utf-8") as f:
             mock_data = json.load(f)
             
-        return {
+        result = {
             "abuse_score": mock_data.get("abuse_confidence_score"),
             "total_reports": mock_data.get("total_reports"),
             "country": mock_data.get("country_code"),
             "isp": mock_data.get("isp"),
             "last_reported_at": mock_data.get("last_reported")
         }
+
+    cache_response(ip, result, ttl=3600)
+    return result

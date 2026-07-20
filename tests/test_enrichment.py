@@ -10,6 +10,14 @@ import httpx
 
 from enrichment.abuseipdb import query_ip
 from enrichment.geoip import get_geolocation
+from enrichment.cache import clear_cache
+
+
+@pytest.fixture(autouse=True)
+def reset_cache():
+    clear_cache()
+    yield
+    clear_cache()
 
 
 # --- AbuseIPDB Tests ---
@@ -596,5 +604,78 @@ def test_enrich_alert_error_handling(mock_check_hash, mock_check_domain, mock_ge
     # country_risk_score = 0 (weight 0.2 -> 0)
     # Total = 30
     assert enrich_data["risk_score"] == 30.0
+
+
+# --- Cache Tests ---
+
+import time
+from enrichment.cache import cache_response, get_cached_response, clear_cache, get_cache_size
+
+def test_cache_set_get_and_clear():
+    """Test setting, retrieving, and clearing cache entries."""
+    clear_cache()
+    assert get_cache_size() == 0
+    assert get_cached_response("1.2.3.4") is None
+
+    test_data = {"abuse_score": 42, "country": "US"}
+    cache_response("1.2.3.4", test_data, ttl=3600)
+
+    assert get_cache_size() == 1
+    assert get_cached_response("1.2.3.4") == test_data
+
+    clear_cache()
+    assert get_cache_size() == 0
+    assert get_cached_response("1.2.3.4") is None
+
+
+def test_cache_expiration():
+    """Test that cache entries expire when TTL passes."""
+    clear_cache()
+    test_data = {"abuse_score": 100}
+    
+    # Store with TTL 10 seconds
+    cache_response("5.6.7.8", test_data, ttl=10)
+
+    with mock.patch("time.time", return_value=time.time() + 5):
+        # Within TTL
+        assert get_cached_response("5.6.7.8") == test_data
+
+    with mock.patch("time.time", return_value=time.time() + 15):
+        # Past TTL
+        assert get_cached_response("5.6.7.8") is None
+
+
+@mock.patch("enrichment.abuseipdb.ABUSEIPDB_API_KEY", "test-api-key")
+@mock.patch("httpx.get")
+def test_query_ip_caches_api_response(mock_get):
+    """Test that query_ip caches API response and prevents secondary HTTP GET requests."""
+    clear_cache()
+    
+    mock_resp = mock.Mock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "data": {
+            "ipAddress": "8.8.8.8",
+            "abuseConfidenceScore": 0,
+            "countryCode": "US",
+            "isp": "Google LLC",
+            "totalReports": 0,
+            "lastReportedAt": None
+        }
+    }
+    mock_get.return_value = mock_resp
+
+    # First call: hits API
+    res1 = query_ip("8.8.8.8")
+    assert mock_get.call_count == 1
+    assert res1["abuse_score"] == 0
+
+    # Second call: hits cache, does NOT hit API
+    res2 = query_ip("8.8.8.8")
+    assert mock_get.call_count == 1  # count stays 1!
+    assert res2 == res1
+
+    clear_cache()
+
 
 
