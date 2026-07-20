@@ -23,6 +23,7 @@ import hashlib
 import logging
 import re
 from datetime import datetime, timezone
+from functools import lru_cache
 from typing import Any, Dict, List, Optional, Tuple
 
 from .schema import (
@@ -78,10 +79,12 @@ _PRIVATE_RANGES = [
 _INTERNAL_TLDS = {"local", "internal", "corp", "lan", "home", "localdomain"}
 
 
+@lru_cache(maxsize=1024)
 def _is_private_ip(ip: str) -> bool:
     return any(pat.match(ip) for pat in _PRIVATE_RANGES)
 
 
+@lru_cache(maxsize=1024)
 def _is_internal_domain(domain: str) -> bool:
     tld = domain.rsplit(".", 1)[-1].lower()
     return tld in _INTERNAL_TLDS

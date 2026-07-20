@@ -1,0 +1,15 @@
+- `[x]` 1. REST API (`ingestion/main.py`)
+  - `[x]` Setup FastAPI, exception handlers.
+  - `[x]` `POST /webhook/alert`
+  - `[x]` `POST /webhook/alerts/batch`
+  - `[x]` `GET /health`, `GET /alerts`, `GET /stats`
+- `[x]` 2. Async Orchestrator (`ingestion/orchestrator.py`)
+  - `[x]` `AlertOrchestrator` class
+  - `[x]` Async pipeline with `Normalizer` and `Enrichment`
+  - `[x]` Deduplication and Latency timing
+- `[x]` 3. Simulator & Mock Data
+  - `[x]` `ingestion/simulator.py` 
+  - `[x]` `ingestion/sample_alerts/alert_*.json` (10 files)
+- `[x]` 4. Testing & Optimization
+  - `[x]` `tests/test_ingestion.py`
+  - `[x]` Optimize `normalizer.py`
