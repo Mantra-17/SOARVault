@@ -10,17 +10,17 @@
 
   <div class="app-shell">
 
-    <!-- Sidebar -->
-<div class="brand">
+<!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
         <span class="brand-mark">◈</span>
         <div class="brand-text">
           <strong>SOARVault</strong>
           <span>Containment Engine</span>
         </div>
       </div>
-      </div>
-
       <nav class="nav">
+        
         <button class="nav-item is-active" data-view="dashboard">
           <span class="nav-dot"></span> Dashboard
         </button>
@@ -142,11 +142,17 @@
         </div>
       </section>
 
-   <section id="view-cases" class="view">
+  <section id="view-cases" class="view">
         <div class="panel panel-wide">
           <div class="panel-head">
             <h2>Incidents</h2>
-            <span class="panel-tag">ID · Time · Type · Severity · Status · Actions</span>
+            <div class="panel-head-right">
+              <span class="panel-tag">ID · Time · Type · Severity · Status · Actions</span>
+              <span class="live-feed-indicator">
+                <span class="spinner" id="incidents-spinner" hidden></span>
+                <span class="pulse"></span> live · refreshes every 5s
+              </span>
+            </div>
           </div>
           <table class="incidents-table">
             <thead>

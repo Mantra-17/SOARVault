@@ -281,6 +281,41 @@ function playbookEditorHTML(p) {
     </div>`;
 }
 
+// ---------- Live incident feed (auto-refresh every 5s) ----------
+
+async function fetchIncidents(cases, onUpdate) {
+  const spinner = document.getElementById("incidents-spinner");
+  if (spinner) spinner.hidden = false;
+
+  try {
+    const latest = await fetchJSON("/api/incidents", null);
+    if (latest) {
+      const knownIds = new Set(cases.map((c) => c.id));
+      const newOnes = latest.filter((c) => !knownIds.has(c.id));
+
+      if (newOnes.length) {
+        // Newest first, at the top of the list.
+        cases.unshift(...newOnes);
+        onUpdate(newOnes.map((c) => c.id));
+      }
+    }
+  } catch (e) {
+    // Silently skip this poll cycle — next interval tick will retry.
+  } finally {
+    if (spinner) spinner.hidden = true;
+  }
+}
+
+function renderIncidentsTable(cases, newIds = []) {
+  document.getElementById("incidents-table-body").innerHTML = cases.map(incidentRow).join("");
+  newIds.forEach((id) => {
+    const row = document.querySelector(`#incidents-table-body tr[data-case-id="${id}"]`);
+    if (row) row.classList.add("is-new");
+  });
+  renderStats(cases);
+}
+
+
 // ---------- View switching ----------
 
 function switchView(view) {
@@ -418,6 +453,13 @@ renderMTTR(metrics);
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") closeAllModals();
   });
+
+  // Live incident feed: poll for new incidents every 5 seconds.
+  setInterval(() => {
+    fetchIncidents(cases, (newIds) => renderIncidentsTable(cases, newIds));
+  }, 5000);
 }
+  
+
 
 document.addEventListener("DOMContentLoaded", init);
