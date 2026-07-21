@@ -1,0 +1,10 @@
+{
+  "title": "Unusual Internal Access",
+  "source_siem": "Elastic",
+  "event.severity": 2,
+  "event.category": "insider_threat",
+  "user": "bob.smith",
+  "host.hostname": "INTERNAL-FS-01",
+  "@timestamp": "2024-03-15T18:00:00Z",
+  "message": "User accessed sensitive HR folder outside normal hours."
+}

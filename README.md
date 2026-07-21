@@ -68,3 +68,28 @@ git add .
 git commit -m "day 1: scaffold dashboard app + folder structure"
 git push -u origin rohit
 ```
+
+## Ingestion & Orchestration Backend (Mantra)
+
+The backend orchestration engine is responsible for receiving raw SIEM alerts, normalizing them, and orchestrating threat enrichment.
+
+### Architecture
+
+Read the full backend design document here: [ORCHESTRATOR_DESIGN.md](docs/ORCHESTRATOR_DESIGN.md).
+
+### Run the API
+
+```bash
+uvicorn ingestion.main:app --reload
+```
+
+The API will be available at http://127.0.0.1:8000.
+
+### Testing & Benchmarking
+
+To test the orchestration engine under load, use the provided benchmarking tool:
+
+```bash
+# Send 100 requests with a concurrency of 10
+python benchmark.py -n 100 -c 10
+```

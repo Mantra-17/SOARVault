@@ -1,0 +1,14 @@
+{
+  "alert_name": "Mass Data Egress",
+  "source_siem": "CrowdStrike",
+  "severity_label": "critical",
+  "attack_type": "data_exfiltration",
+  "network": {
+    "src_ip": "10.0.2.20",
+    "dst_ip": "198.51.100.45",
+    "bytes_sent": 5000000000
+  },
+  "computer_name": "DEV-LAPTOP-05",
+  "time": "2024-03-15 16:00:00+00:00",
+  "summary": "Large outbound transfer to unknown external IP."
+}
