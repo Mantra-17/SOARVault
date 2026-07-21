@@ -214,33 +214,77 @@ function closeAllModals() {
   document.querySelectorAll(".modal-overlay").forEach((el) => el.classList.remove("is-open"));
 }
 
+
+function countryFlag(geo) {
+  if (!geo) return "";
+  const match = geo.match(/,\s*([A-Z]{2})$/); // e.g. "Bucharest, RO" -> "RO"
+  if (!match) return "";
+  const code = match[1];
+  const codePoints = [...code].map((c) => 127397 + c.charCodeAt(0));
+  return String.fromCodePoint(...codePoints);
+}
+
+function riskBarColor(score) {
+  if (score >= 80) return "var(--severity-critical)";
+  if (score >= 60) return "var(--severity-high)";
+  if (score >= 40) return "var(--severity-medium)";
+  return "var(--severity-low)";
+}
+
+// Each timeline step type gets its own color, so the chain of
+// custody reads at a glance rather than as a wall of identical text.
+const TIMELINE_STEP_COLORS = {
+  "Ingested": "var(--cyan)",
+  "Enriched": "#a78bfa",
+  "Risk Scored": "var(--severity-medium)",
+  "Playbook Triggered": "var(--severity-high)",
+  "Contained": "var(--severity-low)",
+};
+
+function timelineStepColor(step) {
+  return TIMELINE_STEP_COLORS[step] || "var(--text-muted)";
+}
 function caseDetailHTML(c) {
   const enrichment = c.enrichment || {};
   const timeline = c.timeline || [];
+  const flag = countryFlag(enrichment.geo);
+  const riskColor = riskBarColor(c.risk_score || 0);
+
   return `
     <div class="modal-head">
       <span class="case-id">${c.id}</span>
       <span class="chip ${c.severity}">${c.severity}</span>
     </div>
     <h2>${c.title}</h2>
-    <p class="modal-sub">IOC <code>${c.ioc}</code> · risk score <strong>${c.risk_score}</strong>/100 · status <strong>${c.status.replace("_", " ")}</strong></p>
+
+    <div class="kv-grid detail-grid">
+      <div><span>Alert type</span><strong>${(c.ioc_type || "—").toUpperCase()}</strong></div>
+      <div><span>Source IP / IOC</span><strong>${c.ioc}</strong></div>
+      <div><span>Country</span><strong>${flag ? `${flag} ` : ""}${enrichment.geo || "—"}</strong></div>
+      <div><span>Status</span><strong>${c.status.replace("_", " ")}</strong></div>
+    </div>
+
+    <h3>Risk score</h3>
+    <div class="risk-bar-track">
+      <div class="risk-bar-fill" style="width:${c.risk_score || 0}%; background:${riskColor};"></div>
+    </div>
+    <span class="risk-bar-label" style="color:${riskColor};">${c.risk_score || 0}/100</span>
 
     <h3>Enrichment</h3>
     <div class="kv-grid">
       ${enrichment.abuseipdb_confidence != null ? `<div><span>AbuseIPDB confidence</span><strong>${enrichment.abuseipdb_confidence}%</strong></div>` : ""}
       ${enrichment.virustotal_malicious_votes ? `<div><span>VirusTotal votes</span><strong>${enrichment.virustotal_malicious_votes}</strong></div>` : ""}
-      ${enrichment.geo ? `<div><span>Geo</span><strong>${enrichment.geo}</strong></div>` : ""}
       ${enrichment.asn ? `<div><span>ASN</span><strong>${enrichment.asn}</strong></div>` : ""}
       ${enrichment.first_seen_in_feeds ? `<div><span>First seen</span><strong>${enrichment.first_seen_in_feeds}</strong></div>` : ""}
     </div>
 
-    <h3>Containment timeline</h3>
+    <h3>Actions taken timeline</h3>
     <div class="timeline">
       ${timeline.map((t) => `
         <div class="timeline-step">
-          <span class="timeline-offset">t+${t.offset_seconds}s</span>
+          <span class="timeline-offset" style="color:${timelineStepColor(t.step)};">T+${t.offset_seconds}s</span>
           <div>
-            <strong>${t.step}</strong>
+            <strong style="color:${timelineStepColor(t.step)};">${t.step}</strong>
             <p>${t.detail}</p>
           </div>
         </div>`).join("")}
