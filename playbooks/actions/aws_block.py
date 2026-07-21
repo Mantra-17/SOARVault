@@ -1,16 +1,15 @@
 import time
 import random
 from datetime import datetime
-from typing import Any
 from . import ActionResult
 
-def block_security_group(ip: str, simulate_fail: bool = False) -> ActionResult:
+def add_security_group_rule(ip: str, port: int = 443, protocol: str = "tcp", simulate_fail: bool = False) -> ActionResult:
     """
-    Mock boto3 Security Group rule add to block an IP with a realistic delay.
+    Mock boto3 Security Group rule add to block or allow traffic.
     """
     start_time = time.time()
     
-    # Simulate API delay (100-300ms)
+    # Simulate network/AWS delay
     time.sleep(random.uniform(0.1, 0.3))
     
     status = "failed" if (simulate_fail or ip == "error") else "success"
@@ -18,7 +17,7 @@ def block_security_group(ip: str, simulate_fail: bool = False) -> ActionResult:
     
     return ActionResult(
         action="aws_block",
-        target=ip,
+        target=f"{ip}:{port}/{protocol}",
         status=status,
         timestamp=datetime.utcnow().isoformat(),
         duration_ms=duration_ms,
