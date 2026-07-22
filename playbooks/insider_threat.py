@@ -9,6 +9,8 @@ class InsiderThreatPlaybook:
     Playbook for detecting and responding to insider threats based on risk score
     and context (off-hours access, unusual resources).
     """
+    MITRE_TECHNIQUE = "T1078"
+
     def __init__(self):
         self.execution_log: List[Any] = []
 

@@ -8,6 +8,8 @@ class DDoSPlaybook:
     """
     Playbook for mitigating DDoS attacks based on risk score.
     """
+    MITRE_TECHNIQUE = "T1498"
+
     def __init__(self):
         self.execution_log: List[Any] = []
 

@@ -1,9 +1,11 @@
 import unittest
 from playbooks.engine import PlaybookEngine, PlaybookResult
+from playbooks.mock_edr import MockEDR
 from playbooks.brute_force import BruteForcePlaybook
 from playbooks.malware import MalwarePlaybook
 from playbooks.ddos import DDoSPlaybook
-from playbooks.mock_edr import MockEDR
+from playbooks.data_exfil import DataExfilPlaybook
+from playbooks.insider_threat import InsiderThreatPlaybook
 from playbooks.actions import ActionResult
 
 class TestPlaybooks(unittest.TestCase):
@@ -162,6 +164,24 @@ class TestPlaybooks(unittest.TestCase):
         res_ddos = self.engine.execute(alert_ddos, risk_score=85.0)
         self.assertEqual(res_ddos.status, "success")
         self.assertTrue(any(a.action == "rate_limit" for a in res_ddos.actions_taken))
+
+        alert_dx = {"type": "data_exfil", "host_id": "HOST-777", "dest_ip": "8.8.8.8"}
+        res_dx = self.engine.execute(alert_dx, risk_score=90.0)
+        self.assertEqual(res_dx.status, "success")
+        self.assertTrue(any(a.action == "block_outbound" for a in res_dx.actions_taken))
+
+        alert_it = {"type": "insider_threat", "username": "bad_user", "off_hours": True, "unusual_resource": True}
+        res_it = self.engine.execute(alert_it, risk_score=95.0)
+        self.assertEqual(res_it.status, "success")
+        self.assertTrue(any(a.action == "disable_account" for a in res_it.actions_taken))
+
+    def test_mitre_mapping(self):
+        """Test: Verify MITRE ATT&CK technique mapping for each playbook."""
+        self.assertEqual(BruteForcePlaybook.MITRE_TECHNIQUE, "T1110")
+        self.assertEqual(MalwarePlaybook.MITRE_TECHNIQUE, "T1204")
+        self.assertEqual(DDoSPlaybook.MITRE_TECHNIQUE, "T1498")
+        self.assertEqual(DataExfilPlaybook.MITRE_TECHNIQUE, "T1041")
+        self.assertEqual(InsiderThreatPlaybook.MITRE_TECHNIQUE, "T1078")
 
 if __name__ == "__main__":
     unittest.main()

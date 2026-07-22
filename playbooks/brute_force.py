@@ -8,6 +8,8 @@ class BruteForcePlaybook:
     """
     Playbook for containing brute force attacks based on risk score.
     """
+    MITRE_TECHNIQUE = "T1110"
+
     def __init__(self):
         self.execution_log: List[Any] = []
 

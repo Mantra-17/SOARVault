@@ -10,6 +10,8 @@ class DataExfilPlaybook:
     Playbook for mitigating data exfiltration by isolating hosts and blocking outbound traffic.
     Data exfil is always treated as CRITICAL severity.
     """
+    MITRE_TECHNIQUE = "T1041"
+
     def __init__(self):
         self.execution_log: List[Any] = []
 
