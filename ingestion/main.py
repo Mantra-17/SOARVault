@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 from .schema import NormalizedAlert
-from .orchestrator import AlertOrchestrator
+from .orchestrator import IncidentOrchestrator
 
 # Setup basic logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -18,7 +18,7 @@ app = FastAPI(
 )
 
 # Global Orchestrator instance
-orchestrator = AlertOrchestrator()
+orchestrator = IncidentOrchestrator()
 
 
 @app.exception_handler(Exception)
@@ -41,7 +41,7 @@ async def receive_alert(payload: Dict[str, Any]):
     """Ingest a single raw SIEM alert."""
     try:
         # Pass to the async orchestrator pipeline
-        result = await orchestrator.process_alert(payload)
+        result = await orchestrator.run_full_pipeline(payload)
         if result.get("status") == "duplicate":
             return JSONResponse(status_code=202, content={"message": "Alert ignored (duplicate)."})
         return {"message": "Alert processed successfully.", "data": result}

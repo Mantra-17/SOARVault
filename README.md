@@ -87,9 +87,17 @@ The API will be available at http://127.0.0.1:8000.
 
 ### Testing & Benchmarking
 
-To test the orchestration engine under load, use the provided benchmarking tool:
+To test the orchestration engine performance and ensure it meets the sub-5-second SLA, use the provided pipeline profiler tool. It tests the raw processing capability of the `IncidentOrchestrator` by running batches of sample alerts end-to-end:
 
 ```bash
-# Send 100 requests with a concurrency of 10
-python benchmark.py -n 100 -c 10
+# Process 100 alerts natively and generate latency statistics (Avg, Min, Max, P95, P99)
+python benchmark.py -n 100
 ```
+
+#### Performance Characteristics
+The SOAR pipeline is strictly bound by a 5-second end-to-end latency constraint. The anticipated latency breakdown is as follows:
+- **Normalization:** ~50ms (synchronous parsing and validation)
+- **Enrichment:** ~2s (asynchronous external network API calls)
+- **Playbook Execution:** ~1s (action dispatching and decision mapping)
+- **Dashboard Push:** ~100ms
+This architecture leaves ample budget for latency spikes in external threat intelligence providers (e.g. VirusTotal, AbuseIPDB) without violating the SLA. Continuous CI/CD tests (`tests/test_performance.py`) ensure that any regression exceeding 5.0 seconds automatically fails the build.
