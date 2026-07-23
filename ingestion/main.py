@@ -6,6 +6,7 @@ from pydantic import ValidationError
 
 from .schema import NormalizedAlert
 from .orchestrator import IncidentOrchestrator
+from .audit import audit_logger
 
 # Setup basic logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -88,3 +89,9 @@ async def get_recent_alerts(limit: int = 50):
 async def get_stats():
     """Return ingestion and orchestration metrics."""
     return orchestrator.get_stats()
+
+
+@app.get("/audit-log")
+async def get_audit_log(limit: int = 100):
+    """Fetch recent structured audit logs."""
+    return {"audit_logs": audit_logger.get_recent_logs(limit=limit)}

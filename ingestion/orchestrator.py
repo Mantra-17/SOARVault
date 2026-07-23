@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 
 from .normalizer import PayloadNormalizer
 from .schema import NormalizedAlert
+from .audit import audit_logger
 
 # Dynamically import the teammate's modules or mock them if incomplete
 try:
@@ -63,14 +64,17 @@ class IncidentOrchestrator:
         alert_hash = self._generate_hash(raw_data)
         if alert_hash in self.seen_hashes:
             self.stats["total_duplicates"] += 1
+            audit_logger.log_event("alert_duplicate", "orchestrator", {"alert_hash": alert_hash})
             return {"status": "duplicate"}
         self.seen_hashes.add(alert_hash)
         self.stats["total_ingested"] += 1
+        audit_logger.log_event("alert_ingested", "orchestrator", {"alert_hash": alert_hash})
 
         try:
             # 2. Normalization
             normalized_alert = self.normalizer.normalize(raw_data)
             logger.info("[INFO] Alert Normalized")
+            audit_logger.log_event("alert_normalized", "normalizer", {"alert_id": str(normalized_alert.alert_id), "type": normalized_alert.type.value})
 
             # 3. Enrichment
             enriched_alert = await asyncio.to_thread(enrich_alert, normalized_alert)
@@ -114,6 +118,7 @@ class IncidentOrchestrator:
         except Exception as e:
             self.stats["total_errors"] += 1
             logger.error(f"Error processing alert in pipeline: {e}")
+            audit_logger.log_event("pipeline_error", "orchestrator", {"error": str(e)})
             raise ValueError(f"Integration failed: {e}")
 
     async def process_alert(self, raw_data: Dict[str, Any]) -> Dict[str, Any]:
