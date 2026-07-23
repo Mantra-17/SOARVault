@@ -678,4 +678,173 @@ def test_query_ip_caches_api_response(mock_get):
     clear_cache()
 
 
+# --- IoC Extractor & Enriched Alert Lookups Tests ---
+
+from enrichment.ioc_extractor import extract_iocs
+
+def test_extract_iocs_basic():
+    """Verify that extract_iocs extracts all expected IoCs correctly and filters internal domains."""
+    raw_alert = {
+        "title": "Malware Outbreak",
+        "description": "Download from http://malicious.com/payload.exe. MD5 was 44f23b2c64e6b66723226a27e7f1df6a. Check 8.8.8.8 and local.corp.",
+        "network": {
+            "src_ip": "1.2.3.4",
+            "dst_ip": "5.6.7.8"
+        },
+        "nested": {
+            "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            "internal_domain": "myhome.local",
+            "external_domain": "legit-domain.com"
+        }
+    }
+
+    iocs = extract_iocs(raw_alert)
+    ioc_map = {(ioc.type, ioc.value) for ioc in iocs}
+
+    # Should extract IPs
+    assert ("ip", "1.2.3.4") in ioc_map
+    assert ("ip", "5.6.7.8") in ioc_map
+    assert ("ip", "8.8.8.8") in ioc_map
+
+    # Should extract MD5 and SHA256 file hashes
+    assert ("file_hash_md5", "44f23b2c64e6b66723226a27e7f1df6a") in ioc_map
+    assert ("file_hash_sha256", "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef") in ioc_map
+
+    # Should extract URL
+    assert ("url", "http://malicious.com/payload.exe") in ioc_map
+
+    # Should extract external domains but filter out internal domains
+    assert ("domain", "malicious.com") not in ioc_map  # Part of URL, so not extracted as domain
+    assert ("domain", "legit-domain.com") in ioc_map
+    assert ("domain", "local.corp") not in ioc_map
+    assert ("domain", "myhome.local") not in ioc_map
+
+
+@mock.patch("enrichment.enricher.query_ip")
+@mock.patch("enrichment.enricher.get_geolocation")
+@mock.patch("enrichment.enricher.check_domain")
+@mock.patch("enrichment.enricher.check_hash")
+def test_enrich_alert_multiple_ips(mock_check_hash, mock_check_domain, mock_get_geo, mock_query_ip):
+    """Verify enrich_alert calls lookups for all unique IPs and uses max abuse score."""
+    # Setup mocks
+    def side_effect_query(ip):
+        if ip == "1.1.1.1":
+            return {"abuse_score": 25}
+        if ip == "2.2.2.2":
+            return {"abuse_score": 75}
+        return {"abuse_score": 10}
+    mock_query_ip.side_effect = side_effect_query
+    
+    mock_get_geo.return_value = {
+        "country": "United States",
+        "country_code": "US",
+        "asn": "AS15169",
+    }
+
+    alert_dict = {
+        "title": "Multiple IPs Alert",
+        "network": {
+            "src_ip": "1.1.1.1",
+            "dst_ip": "2.2.2.2"
+        },
+        "description": "Also contact was made to 3.3.3.3"
+    }
+
+    enriched = enrich_alert(alert_dict)
+
+    # All unique IPs should be queried
+    assert mock_query_ip.call_count == 3
+    # Max score of 25, 75, 10 is 75
+    assert enriched["enrichment"]["abuse_score"] == 75
+
+
+@mock.patch("enrichment.enricher.query_ip")
+@mock.patch("enrichment.enricher.get_geolocation")
+@mock.patch("enrichment.enricher.check_domain")
+@mock.patch("enrichment.enricher.check_hash")
+def test_enrich_alert_primary_ip_priority(mock_check_hash, mock_check_domain, mock_get_geo, mock_query_ip):
+    """Verify enrich_alert prioritizes primary IP (src_ip) for geo enrichment and falls back."""
+    def side_effect_geo(ip):
+        if ip == "1.1.1.1":
+            return {"country": "Germany", "country_code": "DE", "asn": "AS123"}
+        if ip == "2.2.2.2":
+            return {"country": "Canada", "country_code": "CA", "asn": "AS456"}
+        return {"error": "lookup failed"}
+    mock_get_geo.side_effect = side_effect_geo
+    mock_query_ip.return_value = {"abuse_score": 0}
+
+    # Case 1: Primary IP has geo data
+    alert_dict_1 = {
+        "title": "Primary Geo Test",
+        "network": {
+            "src_ip": "1.1.1.1",
+            "dst_ip": "2.2.2.2"
+        }
+    }
+    enriched_1 = enrich_alert(alert_dict_1)
+    assert enriched_1["enrichment"]["geo_country_code"] == "DE"
+    assert enriched_1["network"]["geo_country"] == "Germany"
+
+    # Case 2: Primary IP fails, fall back to next IP
+    alert_dict_2 = {
+        "title": "Fallback Geo Test",
+        "network": {
+            "src_ip": "3.3.3.3",
+            "dst_ip": "2.2.2.2"
+        }
+    }
+    enriched_2 = enrich_alert(alert_dict_2)
+    assert enriched_2["enrichment"]["geo_country_code"] == "CA"
+    # Note: network fields represent the primary IP, which in this case got geo from fallback
+    assert enriched_2["network"]["geo_country"] == "Canada"
+
+
+@mock.patch("enrichment.enricher.query_ip")
+@mock.patch("enrichment.enricher.get_geolocation")
+@mock.patch("enrichment.enricher.check_domain")
+@mock.patch("enrichment.enricher.check_hash")
+def test_enrich_alert_multiple_vt_lookups(mock_check_hash, mock_check_domain, mock_get_geo, mock_query_ip):
+    """Verify enrich_alert queries multiple domains/hashes and sums VirusTotal votes."""
+    mock_query_ip.return_value = {"abuse_score": 0}
+    mock_get_geo.return_value = {}
+
+    def side_effect_domain(domain):
+        if domain == "bad1.com":
+            return {"malicious_votes": 3, "harmless_votes": 10, "suspicious_votes": 1}
+        if domain == "bad2.com":
+            return {"malicious_votes": 5, "harmless_votes": 5, "suspicious_votes": 0}
+        return {"malicious_votes": 0, "harmless_votes": 20, "suspicious_votes": 0}
+    mock_check_domain.side_effect = side_effect_domain
+
+    def side_effect_hash(file_hash):
+        return {"malicious_votes": 10, "harmless_votes": 30, "suspicious_votes": 2}
+    mock_check_hash.side_effect = side_effect_hash
+
+    alert_dict = {
+        "title": "Multiple VT IoCs Test",
+        "description": "Domain bad1.com and bad2.com. Hash is 44f23b2c64e6b66723226a27e7f1df6a."
+    }
+
+    enriched = enrich_alert(alert_dict)
+
+    # 2 domains + 1 hash queried
+    assert mock_check_domain.call_count == 2
+    assert mock_check_hash.call_count == 1
+
+    # malicious_votes sum:
+    # bad1.com -> 3
+    # bad2.com -> 5
+    # hash -> 10
+    # Total = 18
+    assert enriched["enrichment"]["vt_malicious"] == 18
+
+    # total votes sum:
+    # bad1.com -> 3 + 10 + 1 = 14
+    # bad2.com -> 5 + 5 + 0 = 10
+    # hash -> 10 + 30 + 2 = 42
+    # Total = 14 + 10 + 42 = 66
+    assert enriched["enrichment"]["vt_total"] == 66
+
+
+
 
