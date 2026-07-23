@@ -7,6 +7,7 @@ from playbooks.ddos import DDoSPlaybook
 from playbooks.data_exfil import DataExfilPlaybook
 from playbooks.insider_threat import InsiderThreatPlaybook
 from playbooks.actions import ActionResult
+from playbooks.report import get_execution_report
 
 class TestPlaybooks(unittest.TestCase):
     """
@@ -182,6 +183,35 @@ class TestPlaybooks(unittest.TestCase):
         self.assertEqual(DDoSPlaybook.MITRE_TECHNIQUE, "T1498")
         self.assertEqual(DataExfilPlaybook.MITRE_TECHNIQUE, "T1041")
         self.assertEqual(InsiderThreatPlaybook.MITRE_TECHNIQUE, "T1078")
+
+    def test_end_to_end_real_risk_scores(self):
+        """Test: Day 16 - Test all 5 playbooks end-to-end using real risk scores."""
+        # Simulated risk scores from the enrichment module
+        alerts_with_scores = [
+            ({"type": "brute_force", "source_ip": "10.0.0.1"}, 85.5),
+            ({"type": "malware", "host_id": "HOST-001"}, 92.0),
+            ({"type": "ddos", "source_ip": "10.0.0.2"}, 78.3),
+            ({"type": "data_exfil", "dest_ip": "1.2.3.4"}, 99.9),
+            ({"type": "insider_threat", "username": "bob", "off_hours": True, "unusual_resource": True}, 88.0)
+        ]
+        
+        for alert, score in alerts_with_scores:
+            res = self.engine.execute(alert, risk_score=score)
+            self.assertEqual(res.status, "success")
+            self.assertGreater(len(res.actions_taken), 0)
+
+    def test_execution_report_generator(self):
+        """Test: Day 17 - Execution report generator."""
+        alert = {"type": "brute_force", "source_ip": "10.0.0.1", "case_id": "case-test-report"}
+        self.engine.execute(alert, risk_score=95.0)
+        
+        report = get_execution_report(self.engine, "case-test-report")
+        self.assertIsNotNone(report)
+        self.assertEqual(report["case_id"], "case-test-report")
+        self.assertEqual(report["status"], "success")
+        self.assertIn("actions_taken", report)
+        self.assertTrue(len(report["actions_taken"]) > 0)
+        self.assertIn("duration_ms", report["actions_taken"][0])
 
 if __name__ == "__main__":
     unittest.main()
