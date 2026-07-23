@@ -23,6 +23,24 @@ class PlaybookEngine:
     def __init__(self):
         # Maps alert types to playbook classes/implementations
         self._routes: Dict[str, Any] = {}
+        self.cases: Dict[str, PlaybookResult] = {}
+        self._register_defaults()
+
+    def _register_defaults(self):
+        try:
+            from .brute_force import BruteForcePlaybook
+            from .malware import MalwarePlaybook
+            from .ddos import DDoSPlaybook
+            from .insider_threat import InsiderThreatPlaybook
+            from .data_exfil import DataExfilPlaybook
+            self.register_playbook("brute_force", BruteForcePlaybook)
+            self.register_playbook("malware", MalwarePlaybook)
+            self.register_playbook("ddos", DDoSPlaybook)
+            self.register_playbook("insider_threat", InsiderThreatPlaybook)
+            self.register_playbook("data_exfil", DataExfilPlaybook)
+        except ImportError:
+            pass
+
 
     def register_playbook(self, alert_type: str, playbook_cls: Any) -> None:
         """Registers a playbook class or instance for a given alert type."""
@@ -51,6 +69,7 @@ class PlaybookEngine:
         Executes the playbook corresponding to the alert type and risk score.
         """
         start_time = time.time()
+        case_id = alert.get("case_id", f"case-{int(start_time*1000)}")
         try:
             playbook_target = self.select_playbook(alert)
             if isinstance(playbook_target, type):
@@ -59,7 +78,7 @@ class PlaybookEngine:
                 playbook_instance = playbook_target
             else:
                 duration = int((time.time() - start_time) * 1000)
-                return PlaybookResult(
+                res = PlaybookResult(
                     actions_taken=[],
                     execution_time_ms=duration,
                     status="success",
@@ -67,34 +86,41 @@ class PlaybookEngine:
                     success=True,
                     message=f"Successfully routed and executed playbook for: {playbook_target}"
                 )
+                self.cases[case_id] = res
+                return res
                 
             result = playbook_instance.execute(alert, risk_score)
             if isinstance(result, PlaybookResult):
                 if result.execution_time_ms == 0:
                     result.execution_time_ms = int((time.time() - start_time) * 1000)
+                self.cases[case_id] = result
                 return result
             elif isinstance(result, list):
                 duration = int((time.time() - start_time) * 1000)
                 rollback = any(getattr(a, 'reversible', False) for a in result)
-                return PlaybookResult(
+                res = PlaybookResult(
                     actions_taken=result,
                     execution_time_ms=duration,
                     status="success",
                     rollback_available=rollback,
                     success=True
                 )
+                self.cases[case_id] = res
+                return res
             else:
                 duration = int((time.time() - start_time) * 1000)
-                return PlaybookResult(
+                res = PlaybookResult(
                     actions_taken=[],
                     execution_time_ms=duration,
                     status="success",
                     rollback_available=False,
                     success=True
                 )
+                self.cases[case_id] = res
+                return res
         except Exception as e:
             duration = int((time.time() - start_time) * 1000)
-            return PlaybookResult(
+            res = PlaybookResult(
                 actions_taken=[],
                 execution_time_ms=duration,
                 status="failed",
@@ -103,3 +129,35 @@ class PlaybookEngine:
                 message="Playbook execution failed",
                 error=str(e)
             )
+            self.cases[case_id] = res
+            return res
+
+    def undo_actions(self, case_id: str) -> List[Any]:
+        """
+        Reverses all actions taken in a case.
+        """
+        if case_id not in self.cases:
+            return []
+        
+        result = self.cases[case_id]
+        if not result.rollback_available:
+            return []
+        
+        reversed_actions = []
+        for action in result.actions_taken:
+            if getattr(action, 'reversible', False):
+                # Mock reversal
+                action.status = "reversed"
+                reversed_actions.append(action)
+                
+        result.status = "rolled_back"
+        return reversed_actions
+
+    def auto_rollback_check(self, case_id: str, current_risk_score: float, hours_elapsed: float) -> List[Any]:
+        """
+        If risk score drops below 50 after 1 hour, trigger auto-rollback.
+        """
+        if current_risk_score < 50.0 and hours_elapsed >= 1.0:
+            return self.undo_actions(case_id)
+        return []
+

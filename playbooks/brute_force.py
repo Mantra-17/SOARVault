@@ -8,6 +8,8 @@ class BruteForcePlaybook:
     """
     Playbook for containing brute force attacks based on risk score.
     """
+    MITRE_TECHNIQUE = "T1110"
+
     def __init__(self):
         self.execution_log: List[Any] = []
 
@@ -37,7 +39,17 @@ class BruteForcePlaybook:
             
         else:
             # score < 50 -> log only, no action
-            pass
+            from .actions import ActionResult
+            from datetime import datetime
+            log_res = ActionResult(
+                action="log",
+                target=ip,
+                status="logged",
+                timestamp=datetime.utcnow().isoformat(),
+                duration_ms=0,
+                reversible=False
+            )
+            actions_taken.append(log_res)
 
         self.execution_log.extend(actions_taken)
         
@@ -53,3 +65,4 @@ class BruteForcePlaybook:
             status="success",
             rollback_available=rollback_avail
         )
+

@@ -3,7 +3,7 @@ import random
 from datetime import datetime
 from . import ActionResult
 
-def send_notification(message: str, severity: str) -> ActionResult:
+def send_notification(message: str, severity: str, simulate_fail: bool = False) -> ActionResult:
     """
     Mock Slack webhook call with a realistic response delay.
     """
@@ -12,7 +12,7 @@ def send_notification(message: str, severity: str) -> ActionResult:
     # Simulate network delay (50-150ms)
     time.sleep(random.uniform(0.05, 0.15))
     
-    status = "success" if random.random() > 0.05 else "failed"
+    status = "failed" if simulate_fail else "success"
     duration_ms = int((time.time() - start_time) * 1000)
     
     return ActionResult(
@@ -23,3 +23,4 @@ def send_notification(message: str, severity: str) -> ActionResult:
         duration_ms=duration_ms,
         reversible=False
     )
+
