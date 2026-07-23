@@ -90,6 +90,16 @@
           <button id="logout-btn" class="logout-btn" title="Sign out">Sign out ⏻</button>
         </div>
       </header>
+
+
+      <!-- Pending approvals banner (senior_analyst / admin only) -->
+      <div class="approval-banner" id="approval-banner" hidden>
+        <span class="approval-banner-icon">⚠</span>
+        <div class="approval-banner-text">
+          <strong id="approval-banner-count">0 incidents</strong> awaiting your approval to run a high-impact playbook.
+        </div>
+        <button class="approval-banner-link" data-view="cases">Review now →</button>
+      </div>
       <!-- KPI strip -->
       <section class="kpi-strip">
         <div class="mttr-card">

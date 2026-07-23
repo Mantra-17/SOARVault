@@ -155,8 +155,11 @@ function timeAgo(iso) {
   return `${Math.round(mins / 60)}h ago`;
 }
 
+let CAN_APPROVE = false; // set in init() from the session's permissions
+
 function incidentRow(c) {
   const canAck = c.status === "open" || c.status === "in_progress";
+  const needsApproval = c.status === "pending_approval";
   return `
     <tr data-case-id="${c.id}">
       <td class="id-cell">${c.id}</td>
@@ -167,9 +170,27 @@ function incidentRow(c) {
       <td class="row-actions">
         <button data-view-case="${c.id}">View</button>
         ${canAck ? `<button data-ack-case="${c.id}">Acknowledge</button>` : ""}
+        ${needsApproval && CAN_APPROVE ? `
+          <button class="approve-btn" data-approve-case="${c.id}">Approve</button>
+          <button class="reject-btn" data-reject-case="${c.id}">Reject</button>` : ""}
       </td>
     </tr>`;
 }
+
+function renderApprovalBanner(cases) {
+  const banner = document.getElementById("approval-banner");
+  if (!banner) return;
+  const pending = cases.filter((c) => c.status === "pending_approval");
+
+  if (!CAN_APPROVE || pending.length === 0) {
+    banner.hidden = true;
+    return;
+  }
+  document.getElementById("approval-banner-count").textContent =
+    `${pending.length} incident${pending.length === 1 ? "" : "s"}`;
+  banner.hidden = false;
+}
+
 
 
 function playbookCard(p, canEdit) {
@@ -357,6 +378,7 @@ function renderIncidentsTable(cases, newIds = []) {
     if (row) row.classList.add("is-new");
   });
   renderStats(cases);
+  renderApprovalBanner(cases);
 }
 
 
@@ -385,8 +407,9 @@ async function init() {
   const session = requireSession();
   if (!session) return; // redirected to login
 
-  renderUserCard(session);
- const canEditPlaybooks = (session.permissions || []).includes("edit");
+ renderUserCard(session);
+  const canEditPlaybooks = (session.permissions || []).includes("edit");
+  CAN_APPROVE = (session.permissions || []).includes("approve");
   document.getElementById("playbook-edit-hint").textContent = canEditPlaybooks
     ? "editable — playbook changes require peer review"
     : "read-only for your role";
@@ -402,6 +425,7 @@ async function init() {
 renderMTTR(metrics);
   renderKPIs(metrics);
   renderStats(cases);
+  renderApprovalBanner(cases);
 
   const casesHTML = cases.map(caseRow).join("");
   document.getElementById("cases-table").innerHTML = casesHTML;
@@ -417,11 +441,14 @@ renderMTTR(metrics);
   document.getElementById("integrations-grid").innerHTML =
     integrations.map(integrationCard).join("");
 
-  // Nav
+// Nav
   document.querySelectorAll(".nav-item").forEach((btn) => {
     btn.addEventListener("click", () => switchView(btn.dataset.view));
   });
-
+  document.getElementById("approval-banner").addEventListener("click", (e) => {
+    const link = e.target.closest("[data-view]");
+    if (link) switchView(link.dataset.view);
+  });
   // Case row -> detail modal
   document.body.addEventListener("click", async (e) => {
     const viewBtn = e.target.closest("[data-view-case]");
@@ -434,7 +461,7 @@ renderMTTR(metrics);
       return;
     }
 
-    const ackBtn = e.target.closest("[data-ack-case]");
+const ackBtn = e.target.closest("[data-ack-case]");
     if (ackBtn) {
       const id = ackBtn.dataset.ackCase;
       const updated = await fetchJSON(`/api/cases/${id}/ack`, null, { method: "POST" });
@@ -442,6 +469,37 @@ renderMTTR(metrics);
       if (idx > -1) cases[idx].status = (updated && updated.status) || "acknowledged";
       document.getElementById("incidents-table-body").innerHTML = cases.map(incidentRow).join("");
       renderStats(cases);
+      renderApprovalBanner(cases);
+      return;
+    }
+
+    const approveBtn = e.target.closest("[data-approve-case]");
+    if (approveBtn) {
+      const id = approveBtn.dataset.approveCase;
+      const updated = await fetchJSON(`/api/approve/${id}`, null, {
+        method: "POST",
+        headers: { "X-Role": session.role },
+      });
+      const idx = cases.findIndex((c) => c.id === id);
+      if (idx > -1 && updated) cases[idx] = { ...cases[idx], ...updated };
+      document.getElementById("incidents-table-body").innerHTML = cases.map(incidentRow).join("");
+      renderStats(cases);
+      renderApprovalBanner(cases);
+      return;
+    }
+
+    const rejectBtn = e.target.closest("[data-reject-case]");
+    if (rejectBtn) {
+      const id = rejectBtn.dataset.rejectCase;
+      const updated = await fetchJSON(`/api/reject/${id}`, null, {
+        method: "POST",
+        headers: { "X-Role": session.role },
+      });
+      const idx = cases.findIndex((c) => c.id === id);
+      if (idx > -1 && updated) cases[idx] = { ...cases[idx], ...updated };
+      document.getElementById("incidents-table-body").innerHTML = cases.map(incidentRow).join("");
+      renderStats(cases);
+      renderApprovalBanner(cases);
       return;
     }
     const caseEl = e.target.closest("[data-case-id]");

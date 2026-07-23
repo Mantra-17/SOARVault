@@ -23,7 +23,7 @@ enrichment / orchestration modules once teammates land that code.
 
 from flask import Blueprint, jsonify, request
 from datetime import datetime, timedelta
-from frontend.case_manager import list_cases, get_case
+from frontend.case_manager import list_cases, get_case, update_case_status
 from frontend.rbac import get_role, has_permission, authenticate
 
 api = Blueprint("api", __name__)
@@ -192,7 +192,12 @@ def stats():
 
 @api.post("/login")
 def login_v2():
-    """POST /api/login — validate credentials, return role."""
+    """POST /api/login — validate credentials, return role.
+    POST /api/login           -> validate credentials, return role
+
+  POST /api/approve/<id>    -> approve a pending high-impact playbook (senior_analyst/admin only)
+  POST /api/reject/<id>     -> reject/close a pending incident as false positive (senior_analyst/admin only)"""
+    
     return login()
 
 @api.get("/playbooks")
@@ -245,3 +250,36 @@ def update_playbook(playbook_id):
     playbook["trigger"] = body.get("trigger", playbook["trigger"])
     playbook["actions"] = body.get("actions", playbook["actions"])
     return jsonify(playbook)
+
+@api.post("/approve/<incident_id>")
+def approve_incident(incident_id):
+    """POST /api/approve/<id> — approve a pending high-impact playbook."""
+    role = request.headers.get("X-Role", "analyst")
+    if not has_permission(role, "approve"):
+        return jsonify({"error": "forbidden — senior_analyst or admin role required"}), 403
+
+    incident = get_case(incident_id)
+    if not incident:
+        return jsonify({"error": "incident not found"}), 404
+    if incident["status"] != "pending_approval":
+        return jsonify({"error": "incident is not awaiting approval"}), 409
+
+    update_case_status(incident_id, "in_progress")
+    return jsonify(get_case(incident_id))
+
+
+@api.post("/reject/<incident_id>")
+def reject_incident(incident_id):
+    """POST /api/reject/<id> — reject a pending incident as a false positive."""
+    role = request.headers.get("X-Role", "analyst")
+    if not has_permission(role, "approve"):
+        return jsonify({"error": "forbidden — senior_analyst or admin role required"}), 403
+
+    incident = get_case(incident_id)
+    if not incident:
+        return jsonify({"error": "incident not found"}), 404
+    if incident["status"] != "pending_approval":
+        return jsonify({"error": "incident is not awaiting approval"}), 409
+
+    update_case_status(incident_id, "closed_false_positive")
+    return jsonify(get_case(incident_id))

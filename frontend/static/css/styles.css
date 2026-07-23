@@ -554,3 +554,36 @@ body {
   font-size: 12px;
   font-weight: 600;
 }
+
+/* ---------- Pending approvals banner (senior_analyst / admin) ---------- */
+.approval-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(234, 179, 8, 0.12);
+  border: 1px solid var(--severity-medium);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+}
+.approval-banner-icon { font-size: 16px; color: var(--severity-medium); }
+.approval-banner-text { flex: 1; font-size: 13px; color: var(--text); }
+.approval-banner-text strong { color: var(--severity-medium); }
+.approval-banner-link {
+  background: var(--severity-medium);
+  color: #1a1200;
+  border: none;
+  border-radius: 6px;
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+}
+.approval-banner-link:hover { filter: brightness(1.08); }
+
+.status-tag.pending_approval { color: var(--severity-medium); }
+.status-tag.closed_false_positive { color: var(--text-muted); }
+.approve-btn { color: var(--severity-low) !important; border-color: var(--severity-low) !important; }
+.reject-btn { color: var(--severity-critical) !important; border-color: var(--severity-critical) !important; }
