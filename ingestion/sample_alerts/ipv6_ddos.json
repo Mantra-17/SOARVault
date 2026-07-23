@@ -1,0 +1,12 @@
+{
+  "title": "IPv6 DDoS Attempt",
+  "severity": "high",
+  "type": "ddos",
+  "network": {
+    "src_ip": "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+    "dst_ip": "2001:0db8:85a3:0000:0000:8a2e:0370:7335",
+    "protocol": "TCP"
+  },
+  "timestamp": 1710520000,
+  "description": "Volumetric attack originating from an IPv6 address."
+}

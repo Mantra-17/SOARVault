@@ -1,0 +1,12 @@
+{
+  "title": "Failed SSH Logins",
+  "source_siem": "Splunk",
+  "severity": "high",
+  "type": "brute_force",
+  "src_ip": "192.168.1.100",
+  "dst_ip": "10.0.0.5",
+  "src_port": 54321,
+  "dst_port": 22,
+  "timestamp": "2024-03-15T14:30:00Z",
+  "description": "Multiple failed SSH logins from single source IP."
+}
