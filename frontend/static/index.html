@@ -152,7 +152,26 @@
         </div>
       </section>
 
-  <section id="view-cases" class="view">
+<section id="view-cases" class="view">
+        <!-- Stats cards: MTTR, auto-resolved %, critical count -->
+        <div class="stats-cards">
+          <div class="stat-card">
+            <span class="stat-card-label">Avg MTTR</span>
+            <span class="stat-card-value" id="statcard-mttr">—</span>
+            <span class="stat-card-foot">seconds to contain</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-card-label">Auto-resolved</span>
+            <span class="stat-card-value" id="statcard-autoresolved">—</span>
+            <span class="stat-card-foot">of all incidents</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-card-label">Critical count</span>
+            <span class="stat-card-value stat-card-critical" id="statcard-critical">—</span>
+            <span class="stat-card-foot">currently open</span>
+          </div>
+        </div>
+
         <div class="panel panel-wide">
           <div class="panel-head">
             <h2>Incidents</h2>
@@ -164,6 +183,23 @@
               </span>
             </div>
           </div>
+
+          <!-- Severity filter + search -->
+          <div class="incidents-toolbar">
+            <div class="severity-filter" id="severity-filter">
+              <button class="filter-btn is-active" data-severity="all">All</button>
+              <button class="filter-btn" data-severity="critical">Critical</button>
+              <button class="filter-btn" data-severity="high">High</button>
+              <button class="filter-btn" data-severity="medium">Medium</button>
+            </div>
+            <input
+              type="text"
+              id="incident-search"
+              class="incident-search"
+              placeholder="Search by IP, type, or case ID…"
+            />
+          </div>
+
           <table class="incidents-table">
             <thead>
               <tr>

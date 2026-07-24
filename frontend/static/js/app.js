@@ -156,13 +156,17 @@ function timeAgo(iso) {
 }
 
 let CAN_APPROVE = false; // set in init() from the session's permissions
+let LAST_METRICS = null; // cached metrics, used by renderStatCards on re-renders
 
 function incidentRow(c) {
   const canAck = c.status === "open" || c.status === "in_progress";
   const needsApproval = c.status === "pending_approval";
   return `
-    <tr data-case-id="${c.id}">
-      <td class="id-cell">${c.id}</td>
+    <tr data-case-id="${c.id}" data-ioc="${c.ioc || ""}">
+      <td class="id-cell">
+        ${c.id}
+        <div class="id-cell-ioc">${c.ioc || ""}</div>
+      </td>
       <td class="time-cell">${timeAgo(c.created_at || c.opened_at)}</td>
       <td>${(c.ioc_type || "—").toUpperCase()}</td>
       <td><span class="chip ${c.severity}">${c.severity}</span></td>
@@ -371,7 +375,47 @@ async function fetchIncidents(cases, onUpdate) {
   }
 }
 
-function renderIncidentsTable(cases, newIds = []) {
+function renderStatCards(cases, metrics) {
+  const mttrEl = document.getElementById("statcard-mttr");
+  const autoResolvedEl = document.getElementById("statcard-autoresolved");
+  const criticalEl = document.getElementById("statcard-critical");
+  if (!mttrEl) return; // Cases view not in the DOM yet
+
+  const mttr = metrics && typeof metrics.mttr_avg_seconds === "number"
+    ? metrics.mttr_avg_seconds.toFixed(1)
+    : "—";
+  mttrEl.textContent = mttr;
+
+  const total = cases.length;
+  const autoResolved = cases.filter((c) => c.status === "resolved_auto" || c.status === "contained").length;
+  autoResolvedEl.textContent = total ? `${Math.round((autoResolved / total) * 100)}%` : "—";
+
+  const criticalOpen = cases.filter(
+    (c) => c.severity === "critical" && c.status !== "closed" && c.status !== "closed_false_positive"
+  ).length;
+  criticalEl.textContent = criticalOpen;
+}
+
+// Severity filter + search state (Day 12/13)
+let ACTIVE_SEVERITY = "all";
+let SEARCH_QUERY = "";
+
+function applyIncidentFilters() {
+  const rows = document.querySelectorAll("#incidents-table-body tr");
+  const query = SEARCH_QUERY.trim().toLowerCase();
+
+  rows.forEach((row) => {
+    const severity = row.querySelector(".chip")?.classList[1] || "";
+    const rowText = row.textContent.toLowerCase();
+
+    const matchesSeverity = ACTIVE_SEVERITY === "all" || severity === ACTIVE_SEVERITY;
+    const matchesSearch = !query || rowText.includes(query);
+
+    row.classList.toggle("is-filtered-out", !(matchesSeverity && matchesSearch));
+  });
+}
+
+function renderIncidentsTable(cases, newIds = [], metrics = null) {
   document.getElementById("incidents-table-body").innerHTML = cases.map(incidentRow).join("");
   newIds.forEach((id) => {
     const row = document.querySelector(`#incidents-table-body tr[data-case-id="${id}"]`);
@@ -379,6 +423,8 @@ function renderIncidentsTable(cases, newIds = []) {
   });
   renderStats(cases);
   renderApprovalBanner(cases);
+  renderStatCards(cases, metrics || LAST_METRICS);
+  applyIncidentFilters();
 }
 
 
@@ -424,12 +470,11 @@ async function init() {
 
 renderMTTR(metrics);
   renderKPIs(metrics);
-  renderStats(cases);
-  renderApprovalBanner(cases);
+  LAST_METRICS = metrics;
 
   const casesHTML = cases.map(caseRow).join("");
   document.getElementById("cases-table").innerHTML = casesHTML;
-  document.getElementById("incidents-table-body").innerHTML = cases.map(incidentRow).join("");
+  renderIncidentsTable(cases, [], metrics);
 
   const alertsHTML = alerts.map(alertRow).join("");
   document.getElementById("alerts-list").innerHTML = alertsHTML;
@@ -445,9 +490,26 @@ renderMTTR(metrics);
   document.querySelectorAll(".nav-item").forEach((btn) => {
     btn.addEventListener("click", () => switchView(btn.dataset.view));
   });
-  document.getElementById("approval-banner").addEventListener("click", (e) => {
+document.getElementById("approval-banner").addEventListener("click", (e) => {
     const link = e.target.closest("[data-view]");
     if (link) switchView(link.dataset.view);
+  });
+
+  // Severity filter buttons (Day 12)
+  document.getElementById("severity-filter").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-severity]");
+    if (!btn) return;
+    ACTIVE_SEVERITY = btn.dataset.severity;
+    document.querySelectorAll("#severity-filter .filter-btn").forEach((b) => {
+      b.classList.toggle("is-active", b === btn);
+    });
+    applyIncidentFilters();
+  });
+
+  // Incident search bar (Day 13) — search by IP, type, or case ID
+  document.getElementById("incident-search").addEventListener("input", (e) => {
+    SEARCH_QUERY = e.target.value;
+    applyIncidentFilters();
   });
   // Case row -> detail modal
   document.body.addEventListener("click", async (e) => {
@@ -467,9 +529,7 @@ const ackBtn = e.target.closest("[data-ack-case]");
       const updated = await fetchJSON(`/api/cases/${id}/ack`, null, { method: "POST" });
       const idx = cases.findIndex((c) => c.id === id);
       if (idx > -1) cases[idx].status = (updated && updated.status) || "acknowledged";
-      document.getElementById("incidents-table-body").innerHTML = cases.map(incidentRow).join("");
-      renderStats(cases);
-      renderApprovalBanner(cases);
+renderIncidentsTable(cases);
       return;
     }
 
