@@ -11,13 +11,16 @@ import httpx
 from enrichment.abuseipdb import query_ip
 from enrichment.geoip import get_geolocation
 from enrichment.cache import clear_cache
+from enrichment.threat_actor import clear_threat_actor_history
 
 
 @pytest.fixture(autouse=True)
 def reset_cache():
     clear_cache()
+    clear_threat_actor_history()
     yield
     clear_cache()
+    clear_threat_actor_history()
 
 
 # --- AbuseIPDB Tests ---
@@ -844,6 +847,135 @@ def test_enrich_alert_multiple_vt_lookups(mock_check_hash, mock_check_domain, mo
     # hash -> 10 + 30 + 2 = 42
     # Total = 14 + 10 + 42 = 66
     assert enriched["enrichment"]["vt_total"] == 66
+
+
+# --- Threat Actor Profiling Tests ---
+
+from enrichment.threat_actor import track_and_check_ip, get_attack_history
+
+def test_threat_actor_profiling_tracking():
+    """Verify that track_and_check_ip tracks timestamps and flags repeat attackers correctly."""
+    ip = "192.168.1.55"
+    
+    # 1st attack
+    assert not track_and_check_ip(ip, "2026-07-24T08:00:00Z")
+    assert get_attack_history(ip) == ["2026-07-24T08:00:00Z"]
+
+    # 2nd attack
+    assert not track_and_check_ip(ip, "2026-07-24T08:05:00Z")
+    assert get_attack_history(ip) == ["2026-07-24T08:00:00Z", "2026-07-24T08:05:00Z"]
+
+    # Duplicate timestamp of 2nd attack should not increase count
+    assert not track_and_check_ip(ip, "2026-07-24T08:05:00Z")
+    assert len(get_attack_history(ip)) == 2
+
+    # 3rd attack with new timestamp
+    assert track_and_check_ip(ip, "2026-07-24T08:10:00Z")
+    assert get_attack_history(ip) == [
+        "2026-07-24T08:00:00Z",
+        "2026-07-24T08:05:00Z",
+        "2026-07-24T08:10:00Z"
+    ]
+
+
+def test_risk_scorer_repeat_attacker():
+    """Verify that calculate_risk_score automatically adds +20 to repeat attackers, bounded by 100."""
+    # 1. Base score is 50 (abuse_score=100 * 0.5 = 50), plus 20 -> 70
+    data_repeat = {
+        "abuse_score": 100,
+        "repeat_attacker": True
+    }
+    assert calculate_risk_score(data_repeat) == 70
+
+    # 2. Capped at 100: base score 90 + 20 -> 110 -> 100
+    data_cap = {
+        "abuse_score": 100,
+        "geo_country_code": "RU", # country risk 100 * 0.2 = 20
+        "vt_malicious": 60,
+        "vt_total": 90, # vt score = 66.6 -> 66.6 * 0.3 = 20
+        # Total base = 50 + 20 + 20 = 90
+        "repeat_attacker": True
+    }
+    assert calculate_risk_score(data_cap) == 100
+
+
+@mock.patch("enrichment.enricher.query_ip")
+@mock.patch("enrichment.enricher.get_geolocation")
+@mock.patch("enrichment.enricher.check_domain")
+@mock.patch("enrichment.enricher.check_hash")
+def test_enrich_alert_repeat_attacker_dict(mock_check_hash, mock_check_domain, mock_get_geo, mock_query_ip):
+    """Verify dict-based alert enrichment with repeat attacker logic."""
+    mock_query_ip.return_value = {"abuse_score": 0}
+    mock_get_geo.return_value = {"country": "United States", "country_code": "US"}
+    mock_check_domain.return_value = {}
+    mock_check_hash.return_value = {}
+
+    ip = "192.168.5.10"
+    
+    # Send 3 dict alerts sequentially
+    alert1 = {
+        "title": "Alert 1",
+        "detected_at": "2026-07-24T09:00:00Z",
+        "network": {"src_ip": ip}
+    }
+    enriched1 = enrich_alert(alert1)
+    assert not enriched1["enrichment"]["repeat_attacker"]
+    assert "REPEAT_ATTACKER" not in enriched1["enrichment"]["threat_feeds"]
+    assert enriched1["enrichment"]["risk_score"] == 0
+
+    alert2 = {
+        "title": "Alert 2",
+        "detected_at": "2026-07-24T09:05:00Z",
+        "network": {"src_ip": ip}
+    }
+    enriched2 = enrich_alert(alert2)
+    assert not enriched2["enrichment"]["repeat_attacker"]
+    assert "REPEAT_ATTACKER" not in enriched2["enrichment"]["threat_feeds"]
+    assert enriched2["enrichment"]["risk_score"] == 0
+
+    alert3 = {
+        "title": "Alert 3",
+        "detected_at": "2026-07-24T09:10:00Z",
+        "network": {"src_ip": ip}
+    }
+    enriched3 = enrich_alert(alert3)
+    assert enriched3["enrichment"]["repeat_attacker"]
+    assert "REPEAT_ATTACKER" in enriched3["enrichment"]["threat_feeds"]
+    # Base score 0 + 20 = 20
+    assert enriched3["enrichment"]["risk_score"] == 20
+
+
+@mock.patch("enrichment.enricher.query_ip")
+@mock.patch("enrichment.enricher.get_geolocation")
+@mock.patch("enrichment.enricher.check_domain")
+@mock.patch("enrichment.enricher.check_hash")
+def test_enrich_alert_repeat_attacker_pydantic(mock_check_hash, mock_check_domain, mock_get_geo, mock_query_ip):
+    """Verify Pydantic alert enrichment with repeat attacker logic."""
+    mock_query_ip.return_value = {"abuse_score": 40} # base score 20
+    mock_get_geo.return_value = {"country": "United States", "country_code": "US"}
+    mock_check_domain.return_value = {}
+    mock_check_hash.return_value = {}
+
+    ip = "192.168.5.20"
+    
+    # Send 3 Pydantic alerts sequentially
+    for i in range(3):
+        alert = NormalizedAlert(
+            title=f"Alert {i+1}",
+            detected_at=datetime(2026, 7, 24, 10, i * 5, tzinfo=timezone.utc),
+            network=NetworkContext(src_ip=ip)
+        )
+        enriched = enrich_alert(alert)
+        if i < 2:
+            assert not enriched.enrichment.repeat_attacker
+            assert "REPEAT_ATTACKER" not in enriched.enrichment.threat_feeds
+            assert enriched.enrichment.risk_score == 20
+        else:
+            assert enriched.enrichment.repeat_attacker
+            assert "REPEAT_ATTACKER" in enriched.enrichment.threat_feeds
+            # Base score 20 + 20 = 40
+            assert enriched.enrichment.risk_score == 40
+
 
 
 

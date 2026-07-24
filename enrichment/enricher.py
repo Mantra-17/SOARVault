@@ -12,6 +12,7 @@ from enrichment.abuseipdb import query_ip
 from enrichment.geoip import get_geolocation
 from enrichment.virustotal import check_hash, check_domain
 from enrichment.risk_scorer import calculate_risk_score
+from enrichment.threat_actor import track_and_check_ip
 from enrichment.ioc_extractor import extract_iocs
 from ingestion.schema import NormalizedAlert, EnrichmentData, AlertStatus
 
@@ -82,6 +83,12 @@ def enrich_alert(alert: Any) -> Any:
             if ioc_type == "ip":
                 primary_ip = _get_val(ioc, "value")
                 break
+
+    # 4b. Track the primary IP and check if it is a repeat attacker
+    repeat_attacker = False
+    if primary_ip:
+        detected_at = _get_val(alert, "detected_at")
+        repeat_attacker = track_and_check_ip(primary_ip, detected_at)
 
     # 5. Call AbuseIPDB and GeoIP for all unique IPs
     abuse_scores = []
@@ -163,6 +170,7 @@ def enrich_alert(alert: Any) -> Any:
         "vt_malicious": vt_malicious or 0,
         "vt_total": vt_total or 0,
         "geo_country_code": geo_country_code,
+        "repeat_attacker": repeat_attacker,
     }
     risk_score = calculate_risk_score(scorer_data)
 
@@ -173,9 +181,10 @@ def enrich_alert(alert: Any) -> Any:
         "vt_total": vt_total,
         "is_tor_exit": None,
         "is_vpn": None,
-        "threat_feeds": [],
+        "threat_feeds": ["REPEAT_ATTACKER"] if repeat_attacker else [],
         "geo_country_code": geo_country_code,
         "geo_asn_org": geo_asn_org,
+        "repeat_attacker": repeat_attacker,
         "risk_score": float(risk_score),
     }
 

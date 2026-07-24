@@ -125,6 +125,7 @@ class EnrichmentData(BaseModel):
     threat_feeds:     List[str]       = Field(default_factory=list)
     geo_country_code: Optional[str]   = None
     geo_asn_org:      Optional[str]   = None
+    repeat_attacker:  Optional[bool]  = None
     # Composite risk score computed by risk_scorer.py  (0.0 – 100.0)
     risk_score:       Optional[float] = None
 

@@ -76,6 +76,11 @@ def calculate_risk_score(enrichment_data: Any) -> int:
     # Calculate final weighted score
     final_score = (abuse_score * 0.5) + (vt_score * 0.3) + (country_risk_score * 0.2)
     
+    # Add +20 automatically if this is a repeat attacker
+    repeat_attacker = _get_val(enrichment_data, "repeat_attacker", False)
+    if repeat_attacker:
+        final_score += 20.0
+
     # Ensure bounds and round to nearest integer
     return int(round(max(0.0, min(100.0, final_score))))
 
