@@ -62,16 +62,16 @@ class AlertStatus(str, Enum):
 
 class NetworkContext(BaseModel):
     """Optional network-layer metadata attached to an alert."""
-    src_ip:     Optional[str]  = None
-    dst_ip:     Optional[str]  = None
-    src_port:   Optional[int]  = None
-    dst_port:   Optional[int]  = None
-    protocol:   Optional[str]  = None
-    bytes_sent: Optional[int]  = None
-    bytes_recv: Optional[int]  = None
-    geo_country: Optional[str] = None
-    geo_city:    Optional[str] = None
-    asn:         Optional[str] = None
+    src_ip:     Optional[str]  = Field(None, description="Source IP address (IPv4 or IPv6)")
+    dst_ip:     Optional[str]  = Field(None, description="Destination IP address (IPv4 or IPv6)")
+    src_port:   Optional[int]  = Field(None, description="Source port number")
+    dst_port:   Optional[int]  = Field(None, description="Destination port number")
+    protocol:   Optional[str]  = Field(None, description="Network protocol (e.g., tcp, udp)")
+    bytes_sent: Optional[int]  = Field(None, description="Number of bytes sent")
+    bytes_recv: Optional[int]  = Field(None, description="Number of bytes received")
+    geo_country: Optional[str] = Field(None, description="Source country code")
+    geo_city:    Optional[str] = Field(None, description="Source city")
+    asn:         Optional[str] = Field(None, description="Autonomous System Number")
 
     @field_validator("src_ip", "dst_ip", mode="before")
     @classmethod
@@ -89,21 +89,21 @@ class NetworkContext(BaseModel):
 
 class HostContext(BaseModel):
     """Endpoint / workload metadata associated with the affected asset."""
-    hostname:    Optional[str] = None
-    ip:          Optional[str] = None
-    os:          Optional[str] = None
-    cloud_instance_id: Optional[str] = None   # e.g. AWS EC2 instance-id
-    cloud_region:      Optional[str] = None
-    cloud_provider:    Optional[str] = None   # aws | gcp | azure
-    mac_address:       Optional[str] = None
-    tags:              List[str]      = Field(default_factory=list)
+    hostname:    Optional[str] = Field(None, description="Hostname of the affected asset")
+    ip:          Optional[str] = Field(None, description="Primary IP address of the host")
+    os:          Optional[str] = Field(None, description="Operating system version/name")
+    cloud_instance_id: Optional[str] = Field(None, description="Cloud provider instance identifier")
+    cloud_region:      Optional[str] = Field(None, description="Cloud deployment region")
+    cloud_provider:    Optional[str] = Field(None, description="Cloud provider (e.g., aws, gcp, azure)")
+    mac_address:       Optional[str] = Field(None, description="Hardware MAC address")
+    tags:              List[str]      = Field(default_factory=list, description="Asset classification tags")
 
 
 class IoC(BaseModel):
     """A single Indicator of Compromise extracted from the alert payload."""
-    type:  str          # ip | domain | file_hash | url | email
-    value: str
-    context: Optional[str] = None   # e.g. "source IP of brute-force attempt"
+    type:  str          = Field(..., description="Indicator type (ip, domain, file_hash, url, email)")
+    value: str          = Field(..., description="The indicator value itself")
+    context: Optional[str] = Field(None, description="Contextual explanation for the indicator")
 
     # --- normalise hash strings to lower-case hex ---
     @field_validator("value", mode="before")
@@ -140,6 +140,20 @@ class NormalizedAlert(BaseModel):
     Every ingested SIEM payload is parsed and validated into this model by
     ingestion/normalizer.py before anything else touches it.
     """
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "alert_id": "123e4567-e89b-12d3-a456-426614174000",
+                "type": "brute_force",
+                "severity": "high",
+                "status": "new",
+                "title": "Multiple Failed Logins",
+                "detected_at": "2024-03-15T19:00:00Z",
+                "network": {"src_ip": "192.168.1.10"}
+            }
+        }
+    }
 
     # Identifiers
     alert_id:    UUID          = Field(default_factory=uuid4)
