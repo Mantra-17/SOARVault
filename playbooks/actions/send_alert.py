@@ -23,3 +23,9 @@ def send_notification(message: str, severity: str) -> ActionResult:
         duration_ms=duration_ms,
         reversible=False
     )
+
+def notify_slack(target_id: str) -> ActionResult:
+    """
+    Alias/handler for notify_slack playbook action.
+    """
+    return send_notification(f"Alert notification sent for: {target_id}", "medium")
