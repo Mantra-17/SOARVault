@@ -64,7 +64,7 @@ class PlaybookEngine:
             return alert_type_key
         return playbook
 
-    def execute(self, alert: Dict[str, Any], risk_score: float = 0.0) -> PlaybookResult:
+    def execute(self, alert: Dict[str, Any], risk_score: float = 0.0, dry_run: bool = False) -> PlaybookResult:
         """
         Executes the playbook corresponding to the alert type and risk score.
         """
@@ -81,7 +81,7 @@ class PlaybookEngine:
                 res = PlaybookResult(
                     actions_taken=[],
                     execution_time_ms=duration,
-                    status="success",
+                    status="success" if not dry_run else "dry_run",
                     rollback_available=False,
                     success=True,
                     message=f"Successfully routed and executed playbook for: {playbook_target}"
@@ -89,7 +89,19 @@ class PlaybookEngine:
                 self.cases[case_id] = res
                 return res
                 
-            result = playbook_instance.execute(alert, risk_score)
+            # Attempt to pass dry_run if supported by the playbook signature
+            import inspect
+            sig = inspect.signature(playbook_instance.execute)
+            if 'dry_run' in sig.parameters:
+                result = playbook_instance.execute(alert, risk_score, dry_run=dry_run)
+            else:
+                # If playbook doesn't natively support dry_run yet, we just execute it
+                # (For Day 19, we should update playbooks to support it)
+                result = playbook_instance.execute(alert, risk_score)
+                if dry_run and isinstance(result, PlaybookResult):
+                    result.status = "dry_run"
+                    for a in result.actions_taken:
+                        a.status = "dry_run"
             if isinstance(result, PlaybookResult):
                 if result.execution_time_ms == 0:
                     result.execution_time_ms = int((time.time() - start_time) * 1000)

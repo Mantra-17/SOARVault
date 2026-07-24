@@ -13,29 +13,49 @@ class BruteForcePlaybook:
     def __init__(self):
         self.execution_log: List[Any] = []
 
-    def execute(self, alert: Dict[str, Any], risk_score: float) -> PlaybookResult:
+    def execute(self, alert: Dict[str, Any], risk_score: float, dry_run: bool = False) -> PlaybookResult:
         start_time = time.time()
         actions_taken = []
         ip = alert.get("source_ip") or alert.get("ip") or "10.0.0.10"
         
+        from datetime import datetime
+        from .actions import ActionResult
+
+        def _simulate_action(action_name: str, target: str) -> ActionResult:
+            return ActionResult(
+                action=action_name,
+                target=target,
+                status="dry_run",
+                timestamp=datetime.utcnow().isoformat(),
+                duration_ms=0,
+                reversible=True
+            )
+        
         if risk_score > 80:
             # score > 80 -> block_ip() + send_notification()
-            block_res = block_ip(ip)
-            actions_taken.append(block_res)
-            
-            notif_res = send_notification(
-                f"CRITICAL: Brute force attack detected from {ip} (Risk: {risk_score}). IP blocked.",
-                "CRITICAL"
-            )
-            actions_taken.append(notif_res)
+            if dry_run:
+                actions_taken.append(_simulate_action("block_ip", ip))
+                actions_taken.append(_simulate_action("send_notification", "CRITICAL"))
+            else:
+                block_res = block_ip(ip)
+                actions_taken.append(block_res)
+                
+                notif_res = send_notification(
+                    f"CRITICAL: Brute force attack detected from {ip} (Risk: {risk_score}). IP blocked.",
+                    "CRITICAL"
+                )
+                actions_taken.append(notif_res)
             
         elif risk_score >= 50:
             # score 50-80 -> send_notification() only (needs approval)
-            notif_res = send_notification(
-                f"WARNING: Brute force attempt detected from {ip} (Risk: {risk_score}). Approval required.",
-                "WARNING"
-            )
-            actions_taken.append(notif_res)
+            if dry_run:
+                actions_taken.append(_simulate_action("send_notification", "WARNING"))
+            else:
+                notif_res = send_notification(
+                    f"WARNING: Brute force attempt detected from {ip} (Risk: {risk_score}). Approval required.",
+                    "WARNING"
+                )
+                actions_taken.append(notif_res)
             
         else:
             # score < 50 -> log only, no action

@@ -10,3 +10,4 @@ class ActionResult:
     timestamp: str
     duration_ms: int
     reversible: bool
+    response_data: Optional[dict] = None
