@@ -213,5 +213,74 @@ class TestPlaybooks(unittest.TestCase):
         self.assertTrue(len(report["actions_taken"]) > 0)
         self.assertIn("duration_ms", report["actions_taken"][0])
 
+    def test_brute_force_edge_cases(self):
+        """Test: Day 22 - Edge cases for BruteForcePlaybook."""
+        # Missing source_ip should use fallback "unknown_ip"
+        alert = {"type": "brute_force"}
+        res = self.brute_force.execute(alert, risk_score=90.0)
+        self.assertEqual(res.status, "success")
+        actions = [a.action for a in res.actions_taken]
+        self.assertIn("block_ip", actions)
+        
+        # Boundary score exactly 80.0 (should not trigger block_ip based on >80 logic)
+        alert2 = {"type": "brute_force", "source_ip": "10.0.0.1"}
+        res2 = self.brute_force.execute(alert2, risk_score=80.0)
+        actions2 = [a.action for a in res2.actions_taken]
+        self.assertNotIn("block_ip", actions2)
+        self.assertIn("send_notification", actions2)
+
+    def test_malware_edge_cases(self):
+        """Test: Day 22 - Edge cases for MalwarePlaybook."""
+        # Missing host_id
+        alert = {"type": "malware"}
+        res = self.malware.execute(alert, risk_score=90.0)
+        actions = [a.action for a in res.actions_taken]
+        self.assertIn("isolate_host", actions)
+        
+        # Boundary score exactly 50.0 (should trigger flag_for_approval)
+        res2 = self.malware.execute({"type": "malware"}, risk_score=50.0)
+        actions2 = [a.action for a in res2.actions_taken]
+        self.assertIn("flag_for_approval", actions2)
+
+    def test_ddos_edge_cases(self):
+        """Test: Day 22 - Edge cases for DDoSPlaybook."""
+        # Boundary score exactly 70.0 (should not trigger block_ip based on >70 logic)
+        alert = {"type": "ddos", "source_ip": "1.1.1.1"}
+        res = self.ddos.execute(alert, risk_score=70.0)
+        actions = [a.action for a in res.actions_taken]
+        self.assertNotIn("block_ip", actions)
+        self.assertIn("send_notification", actions)
+
+    def test_data_exfil_edge_cases(self):
+        """Test: Day 22 - Edge cases for DataExfilPlaybook."""
+        # Missing host_id and dest_ip
+        alert = {"type": "data_exfil"}
+        res = self.data_exfil.execute(alert, risk_score=80.0)
+        self.assertEqual(res.status, "success")
+        actions = [a.action for a in res.actions_taken]
+        self.assertIn("isolate_host", actions)
+        
+        # Boundary score exactly 75.0 (should not trigger isolation based on >75 logic)
+        res2 = self.data_exfil.execute(alert, risk_score=75.0)
+        actions2 = [a.action for a in res2.actions_taken]
+        self.assertNotIn("isolate_host", actions2)
+        self.assertIn("send_notification", actions2)
+
+    def test_insider_threat_edge_cases(self):
+        """Test: Day 22 - Edge cases for InsiderThreatPlaybook."""
+        # Missing username, should use fallback
+        alert = {"type": "insider_threat", "off_hours": True, "unusual_resource": True}
+        res = self.insider_threat.execute(alert, risk_score=20.0) # Low score but high context risk
+        self.assertEqual(res.status, "success")
+        actions = [a.action for a in res.actions_taken]
+        self.assertIn("disable_account", actions)
+        
+        # Boundary score exactly 50.0 without off_hours/unusual_resource
+        alert2 = {"type": "insider_threat"}
+        res2 = self.insider_threat.execute(alert2, risk_score=50.0)
+        actions2 = [a.action for a in res2.actions_taken]
+        self.assertNotIn("disable_account", actions2)
+        self.assertIn("send_notification", actions2)
+
 if __name__ == "__main__":
     unittest.main()
