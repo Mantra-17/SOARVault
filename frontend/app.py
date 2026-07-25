@@ -7,7 +7,7 @@ app = Flask(__name__, static_folder="static", static_url_path="")
 app.register_blueprint(api, url_prefix="/api")
 
 @app.route("/")
-def index():
+def index(): 
     return send_from_directory(app.static_folder, "index.html")
 
 if __name__ == "__main__":
