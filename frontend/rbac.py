@@ -10,7 +10,7 @@ rbac.py — Role-Based Access Control
 VIEW_ONLY = ["view"]
 VIEW_APPROVE = ["view", "approve"]
 FULL_ACCESS = ["view", "approve", "edit", "delete", "manage_users"]
-
+ 
 ROLES = {
     "analyst": {
         "label": "Analyst",
