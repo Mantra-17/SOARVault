@@ -1,0 +1,20 @@
+{
+  "_comment": "Simulated Cryptominer network connection alert",
+  "title": "Cryptomining Pool Connection",
+  "description": "System workload work-station-47 initiated outbound connection to known cryptomining pool domain: malicious-miner-pool.com. Attacking source IP: 185.234.218.15",
+  "type": "malware",
+  "severity": "medium",
+  "rule_id": "MINER-POOL-CONN",
+  "timestamp": "2026-07-25T08:30:00Z",
+  "source": "DNS Query log",
+  "network": {
+    "src_ip": "185.234.218.15",
+    "dst_ip": "10.0.4.75",
+    "src_port": 53021,
+    "dst_port": 80,
+    "protocol": "tcp"
+  },
+  "host": {
+    "hostname": "work-station-47"
+  }
+}
