@@ -9,7 +9,7 @@ from playbooks.engine import PlaybookEngine
 api = Blueprint("api", __name__)
 
 def get_metrics_from_redis(): 
-    db = get_redis_client()
+    db = get_redis_client() 
     try:
         mttr_avg = float(db.get("metrics:mttr_avg_seconds") or 4.2)
         alerts_ingested = int(db.get("metrics:alerts_ingested_24h") or 412)
