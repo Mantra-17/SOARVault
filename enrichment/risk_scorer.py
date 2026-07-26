@@ -5,8 +5,14 @@ Calculates a composite risk score from enrichment data.
 
 from typing import Any, Dict, Optional
 
-# List of high-risk countries (ISO 3166-1 alpha-2 codes)
-HIGH_RISK_COUNTRIES = {"RU", "CN", "KP", "IR", "SY"}
+# Tiered weight bonuses/scores for high-risk countries (ISO 3166-1 alpha-2 codes)
+COUNTRY_RISK_WEIGHTS = {
+    "KP": 100.0,  # Critical threat
+    "RU": 75.0,   # High threat
+    "CN": 75.0,   # High threat
+    "IR": 50.0,   # Medium threat
+    "SY": 50.0,   # Medium threat
+}
 
 def calculate_risk_score(enrichment_data: Any) -> int:
     """
@@ -18,7 +24,7 @@ def calculate_risk_score(enrichment_data: Any) -> int:
     Where:
       - abuse_score: confidence score from AbuseIPDB (0-100)
       - vt_malicious: normalized VirusTotal malicious engine score (0-100)
-      - country_risk: risk score based on country code (0 or 100)
+      - country_risk: risk score based on country code (0 to 100, tiered based on country threat levels)
     """
     if enrichment_data is None:
         return 0
@@ -66,10 +72,7 @@ def calculate_risk_score(enrichment_data: Any) -> int:
         if isinstance(country_code, str):
             country_code = country_code.strip().upper()
             
-        if country_code in HIGH_RISK_COUNTRIES:
-            country_risk_score = 100.0
-        else:
-            country_risk_score = 0.0
+        country_risk_score = COUNTRY_RISK_WEIGHTS.get(country_code, 0.0)
             
     country_risk_score = max(0.0, min(100.0, float(country_risk_score)))
 
