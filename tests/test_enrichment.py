@@ -345,8 +345,8 @@ def test_calculate_risk_score_dictionary():
         "geo_country_code": "RU"
     }
     score = calculate_risk_score(data_med)
-    # 50 * 0.5 + (30/60 * 100) * 0.3 + 100 * 0.2 = 25 + 15 + 20 = 60
-    assert score == 60
+    # 50 * 0.5 + (30/60 * 100) * 0.3 + 75 * 0.2 = 25 + 15 + 15 = 55
+    assert score == 55
     assert get_risk_label(score) == "MEDIUM"
 
     # 3. High Risk Case
@@ -369,8 +369,8 @@ def test_calculate_risk_score_dictionary():
         "geo_country_code": "CN"
     }
     score = calculate_risk_score(data_crit)
-    # 90 * 0.5 + (60/70 * 100) * 0.3 + 100 * 0.2 = 45 + 25.714 + 20 = 90.714 -> rounds to 91
-    assert score == 91
+    # 90 * 0.5 + (60/70 * 100) * 0.3 + 75 * 0.2 = 45 + 25.714 + 15 = 85.714 -> rounds to 86
+    assert score == 86
     assert get_risk_label(score) == "CRITICAL"
 
 
@@ -383,8 +383,8 @@ def test_calculate_risk_score_pydantic():
         geo_country_code="RU"
     )
     score = calculate_risk_score(data)
-    # 40 * 0.5 + (5/10 * 100) * 0.3 + 100 * 0.2 = 20 + 15 + 20 = 55
-    assert score == 55
+    # 40 * 0.5 + (5/10 * 100) * 0.3 + 75 * 0.2 = 20 + 15 + 15 = 50
+    assert score == 50
     assert get_risk_label(score) == "MEDIUM"
 
 
@@ -421,7 +421,7 @@ def test_calculate_risk_score_edge_cases():
         "vt_malicious": 0,
         "country_code": "  cn  "
     }
-    assert calculate_risk_score(data_country_norm) == 20  # 100 * 0.2 = 20
+    assert calculate_risk_score(data_country_norm) == 15  # 75 * 0.2 = 15
 
 
 # --- Enricher Tests ---
@@ -552,9 +552,9 @@ def test_enrich_alert_pydantic(mock_check_hash, mock_check_domain, mock_get_geo,
     # Calculated risk score check:
     # abuse_score = 80 (weight 0.5 -> 40)
     # vt_score = 0 (weight 0.3 -> 0)
-    # country_risk_score = 100 (RU is high risk, weight 0.2 -> 20)
-    # Total = 40 + 0 + 20 = 60
-    assert enriched.enrichment.risk_score == 60.0
+    # country_risk_score = 75 (RU is high risk, weight 0.2 -> 15)
+    # Total = 40 + 0 + 15 = 55
+    assert enriched.enrichment.risk_score == 55.0
 
     # Check network geo enrichment
     assert enriched.network.geo_country == "Russian Federation"
@@ -887,16 +887,43 @@ def test_risk_scorer_repeat_attacker():
     }
     assert calculate_risk_score(data_repeat) == 70
 
-    # 2. Capped at 100: base score 90 + 20 -> 110 -> 100
+    # 2. Capped at 100: base score 85 + 20 -> 105 -> 100
     data_cap = {
         "abuse_score": 100,
-        "geo_country_code": "RU", # country risk 100 * 0.2 = 20
+        "geo_country_code": "RU", # country risk 75 * 0.2 = 15
         "vt_malicious": 60,
         "vt_total": 90, # vt score = 66.6 -> 66.6 * 0.3 = 20
-        # Total base = 50 + 20 + 20 = 90
+        # Total base = 50 + 20 + 15 = 85
         "repeat_attacker": True
     }
     assert calculate_risk_score(data_cap) == 100
+
+
+def test_country_risk_weightings():
+    """Verify that different countries receive their respective tiered weight bonuses."""
+    # KP: Country risk 100.0 -> contributes 20 to score (0.2 weight)
+    data_kp = {"abuse_score": 0, "geo_country_code": "KP"}
+    assert calculate_risk_score(data_kp) == 20
+
+    # RU: Country risk 75.0 -> contributes 15 to score (0.2 weight)
+    data_ru = {"abuse_score": 0, "geo_country_code": "RU"}
+    assert calculate_risk_score(data_ru) == 15
+
+    # CN: Country risk 75.0 -> contributes 15 to score (0.2 weight)
+    data_cn = {"abuse_score": 0, "geo_country_code": "CN"}
+    assert calculate_risk_score(data_cn) == 15
+
+    # IR: Country risk 50.0 -> contributes 10 to score (0.2 weight)
+    data_ir = {"abuse_score": 0, "geo_country_code": "IR"}
+    assert calculate_risk_score(data_ir) == 10
+
+    # SY: Country risk 50.0 -> contributes 10 to score (0.2 weight)
+    data_sy = {"abuse_score": 0, "geo_country_code": "SY"}
+    assert calculate_risk_score(data_sy) == 10
+
+    # Any other country: Country risk 0.0 -> contributes 0 to score (0.2 weight)
+    data_other = {"abuse_score": 0, "geo_country_code": "US"}
+    assert calculate_risk_score(data_other) == 0
 
 
 @mock.patch("enrichment.enricher.query_ip")
