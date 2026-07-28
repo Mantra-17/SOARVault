@@ -1,88 +1,26 @@
-import time
-from typing import Dict, Any, List
-from .actions.block_ip import block_ip
-from .actions.send_alert import send_notification
-from .engine import PlaybookResult
+from typing import List, Dict, Any
+from .engine import ActionResult
+from .actions import block_ip, send_notification
 
 class BruteForcePlaybook:
     """
-    Playbook for containing brute force attacks based on risk score.
+    Playbook for mitigating Brute Force attacks.
+    MITRE ATT&CK: T1110 (Brute Force)
     """
-    MITRE_TECHNIQUE = "T1110"
+    def __init__(self, dry_run: bool = False):
+        self.dry_run = dry_run
+        self.execution_log: List[ActionResult] = []
 
-    def __init__(self):
-        self.execution_log: List[Any] = []
-
-    def execute(self, alert: Dict[str, Any], risk_score: float, dry_run: bool = False) -> PlaybookResult:
-        start_time = time.time()
-        actions_taken = []
-        ip = alert.get("source_ip") or alert.get("ip") or "10.0.0.10"
-        
-        from datetime import datetime
-        from .actions import ActionResult
-
-        def _simulate_action(action_name: str, target: str) -> ActionResult:
-            return ActionResult(
-                action=action_name,
-                target=target,
-                status="dry_run",
-                timestamp=datetime.utcnow().isoformat(),
-                duration_ms=0,
-                reversible=True
-            )
+    def execute(self, alert: Dict[str, Any], risk_score: int) -> List[ActionResult]:
+        """Executes playbook logic based on risk score."""
+        ip = alert.get("source_ip", "0.0.0.0")
         
         if risk_score > 80:
-            # score > 80 -> block_ip() + send_notification()
-            if dry_run:
-                actions_taken.append(_simulate_action("block_ip", ip))
-                actions_taken.append(_simulate_action("send_notification", "CRITICAL"))
-            else:
-                block_res = block_ip(ip)
-                actions_taken.append(block_res)
-                
-                notif_res = send_notification(
-                    f"CRITICAL: Brute force attack detected from {ip} (Risk: {risk_score}). IP blocked.",
-                    "CRITICAL"
-                )
-                actions_taken.append(notif_res)
-            
-        elif risk_score >= 50:
-            # score 50-80 -> send_notification() only (needs approval)
-            if dry_run:
-                actions_taken.append(_simulate_action("send_notification", "WARNING"))
-            else:
-                notif_res = send_notification(
-                    f"WARNING: Brute force attempt detected from {ip} (Risk: {risk_score}). Approval required.",
-                    "WARNING"
-                )
-                actions_taken.append(notif_res)
-            
+            self.execution_log.append(block_ip(ip, self.dry_run))
+            self.execution_log.append(send_notification(f"Blocked IP {ip}", "CRITICAL", self.dry_run))
+        elif 50 <= risk_score <= 80:
+            self.execution_log.append(send_notification(f"Brute force from {ip} needs approval", "HIGH", self.dry_run))
         else:
-            # score < 50 -> log only, no action
-            from .actions import ActionResult
-            from datetime import datetime
-            log_res = ActionResult(
-                action="log",
-                target=ip,
-                status="logged",
-                timestamp=datetime.utcnow().isoformat(),
-                duration_ms=0,
-                reversible=False
-            )
-            actions_taken.append(log_res)
-
-        self.execution_log.extend(actions_taken)
-        
-        duration_ms = int((time.time() - start_time) * 1000)
-        total_action_time = sum(getattr(a, 'duration_ms', 0) for a in actions_taken)
-        exec_time = max(duration_ms, total_action_time)
-        
-        rollback_avail = any(getattr(a, 'reversible', False) for a in actions_taken)
-        
-        return PlaybookResult(
-            actions_taken=actions_taken,
-            execution_time_ms=exec_time,
-            status="success",
-            rollback_available=rollback_avail
-        )
-
+            self.execution_log.append(send_notification(f"Logged brute force from {ip}", "INFO", self.dry_run))
+            
+        return self.execution_log

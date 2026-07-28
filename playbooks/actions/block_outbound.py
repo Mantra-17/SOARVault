@@ -1,17 +1,17 @@
 import time
-from datetime import datetime
-from . import ActionResult
+from playbooks.engine import ActionResult
 
-def block_outbound(host_id: str, dest_ip: str) -> ActionResult:
-    """Mock firewall outbound rule creation with realistic delay."""
-    start_time = time.time()
-    time.sleep(0.05)  # 50ms delay
+def block_outbound(host_id: str, dry_run: bool = False) -> ActionResult:
+    """Mock firewall outbound rule addition."""
+    start = time.time()
+    if not dry_run:
+        time.sleep(0.1)
+    end = time.time()
     
     return ActionResult(
         action="block_outbound",
-        target=f"{host_id}->{dest_ip}",
-        status="success",
-        timestamp=datetime.utcnow().isoformat(),
-        duration_ms=int((time.time() - start_time) * 1000),
+        target=host_id,
+        status="success" if not dry_run else "dry_run_success",
+        duration_ms=int((end - start) * 1000),
         reversible=True
     )

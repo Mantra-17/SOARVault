@@ -1,25 +1,17 @@
 import time
-import random
-from datetime import datetime
-from . import ActionResult
+from playbooks.engine import ActionResult
 
-def disable_account(username: str, simulate_fail: bool = False) -> ActionResult:
-    """
-    Mock AD account disable action.
-    """
-    start_time = time.time()
-    
-    # Simulate API/AD delay (100-300ms)
-    time.sleep(random.uniform(0.1, 0.3))
-    
-    status = "failed" if simulate_fail else "success"
-    duration_ms = int((time.time() - start_time) * 1000)
+def disable_account(user_id: str, dry_run: bool = False) -> ActionResult:
+    """Mock AD account disable action."""
+    start = time.time()
+    if not dry_run:
+        time.sleep(0.15)
+    end = time.time()
     
     return ActionResult(
         action="disable_account",
-        target=username,
-        status=status,
-        timestamp=datetime.utcnow().isoformat(),
-        duration_ms=duration_ms,
+        target=user_id,
+        status="success" if not dry_run else "dry_run_success",
+        duration_ms=int((end - start) * 1000),
         reversible=True
     )

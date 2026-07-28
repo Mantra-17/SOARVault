@@ -1,26 +1,22 @@
 import time
-import random
-from datetime import datetime
-from . import ActionResult
+from playbooks.engine import ActionResult
+from playbooks.mock_edr import MockEDR
 
-def isolate_host(host_id: str, simulate_fail: bool = False) -> ActionResult:
-    """
-    Mock EDR/Network action to isolate a host with a realistic 50-200ms delay.
-    """
-    start_time = time.time()
+def isolate_host(host_id: str, dry_run: bool = False) -> ActionResult:
+    """Isolate a host using the EDR."""
+    start = time.time()
+    edr = MockEDR()
     
-    # Simulate network/EDR delay (50-200ms)
-    time.sleep(random.uniform(0.05, 0.20))
-    
-    status = "failed" if (simulate_fail or host_id == "error") else "success"
-    duration_ms = int((time.time() - start_time) * 1000)
+    status = "success"
+    if not dry_run:
+        status = edr.isolate(host_id)
+        
+    end = time.time()
     
     return ActionResult(
         action="isolate_host",
         target=host_id,
-        status=status,
-        timestamp=datetime.utcnow().isoformat(),
-        duration_ms=duration_ms,
+        status=status if not dry_run else "dry_run_success",
+        duration_ms=int((end - start) * 1000),
         reversible=True
     )
-
