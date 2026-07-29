@@ -1,109 +1,40 @@
-"""
-Risk scorer module.
-Calculates a composite risk score from enrichment data.
-"""
-
-from typing import Any, Dict, Optional
-
-# Tiered weight bonuses/scores for high-risk countries (ISO 3166-1 alpha-2 codes)
-COUNTRY_RISK_WEIGHTS = {
-    "KP": 100.0,  # Critical threat
-    "RU": 75.0,   # High threat
-    "CN": 75.0,   # High threat
-    "IR": 50.0,   # Medium threat
-    "SY": 50.0,   # Medium threat
-}
-
-def calculate_risk_score(enrichment_data: Any) -> int:
+def calculate_risk_score(severity: str, abuse_score: int or None, vt_votes: str or int or None) -> int:
     """
-    Calculate a composite risk score (0-100) based on enrichment data.
+    Calculates a composite risk score (0-100) based on severity, 
+    AbuseIPDB reputation, and VirusTotal detections.
+    """
+    # 1. Base score from vendor severity
+    severity_map = {
+        "critical": 65,
+        "high": 45,
+        "medium": 25,
+        "low": 10
+    }
+    score = severity_map.get(severity.lower(), 25)
     
-    Formula:
-      score = abuse_score * 0.5 + vt_malicious * 0.3 + country_risk * 0.2
-      
-    Where:
-      - abuse_score: confidence score from AbuseIPDB (0-100)
-      - vt_malicious: normalized VirusTotal malicious engine score (0-100)
-      - country_risk: risk score based on country code (0 to 100, tiered based on country threat levels)
-    """
-    if enrichment_data is None:
-        return 0
-
-    # Helper to get values from dict or object safely
-    def _get_val(data: Any, name: str, default: Any = None) -> Any:
-        val = None
-        if isinstance(data, dict):
-            val = data.get(name)
-        else:
-            val = getattr(data, name, None)
-        return val if val is not None else default
-
-    # 1. Get Abuse Score (0-100)
-    abuse_score = _get_val(enrichment_data, "abuse_score", 0)
-    abuse_score = max(0.0, min(100.0, float(abuse_score)))
-
-    # 2. Get VirusTotal Score (0-100)
-    # Check if a pre-computed vt_score exists
-    vt_score = _get_val(enrichment_data, "vt_score", None)
-    if vt_score is None:
-        vt_malicious_val = _get_val(enrichment_data, "vt_malicious", 0)
-        vt_total_val = _get_val(enrichment_data, "vt_total", 0)
+    # 2. Add points from AbuseIPDB (up to 20 points)
+    if abuse_score is not None:
+        # Scale 0-100 to 0-20
+        score += int(abuse_score * 0.2)
         
-        if vt_total_val > 0:
-            vt_score = (vt_malicious_val / vt_total_val) * 100.0
-        else:
-            if vt_malicious_val > 0:
-                # Default to 70 engines if total is not provided
-                vt_score = (vt_malicious_val / 70.0) * 100.0
-            else:
-                vt_score = 0.0
-                
-    vt_score = max(0.0, min(100.0, float(vt_score)))
-
-    # 3. Get Country Risk Score (0-100)
-    country_risk_score = _get_val(enrichment_data, "country_risk", None)
-    if country_risk_score is None:
-        country_code = _get_val(enrichment_data, "geo_country_code", None)
-        if country_code is None:
-            country_code = _get_val(enrichment_data, "country_code", None)
-        if country_code is None:
-            country_code = _get_val(enrichment_data, "country", None)
+    # 3. Add points from VirusTotal (up to 25 points)
+    if vt_votes is not None:
+        malicious = 0
+        total = 72 # default denominator
+        
+        if isinstance(vt_votes, str) and "/" in vt_votes:
+            try:
+                parts = vt_votes.split("/")
+                malicious = int(parts[0])
+                total = max(int(parts[1]), 1)
+            except ValueError:
+                pass
+        elif isinstance(vt_votes, (int, float)):
+            malicious = int(vt_votes)
             
-        if isinstance(country_code, str):
-            country_code = country_code.strip().upper()
-            
-        country_risk_score = COUNTRY_RISK_WEIGHTS.get(country_code, 0.0)
-            
-    country_risk_score = max(0.0, min(100.0, float(country_risk_score)))
-
-    # Calculate final weighted score
-    final_score = (abuse_score * 0.5) + (vt_score * 0.3) + (country_risk_score * 0.2)
-    
-    # Add +20 automatically if this is a repeat attacker
-    repeat_attacker = _get_val(enrichment_data, "repeat_attacker", False)
-    if repeat_attacker:
-        final_score += 20.0
-
-    # Ensure bounds and round to nearest integer
-    return int(round(max(0.0, min(100.0, final_score))))
-
-
-def get_risk_label(score: float) -> str:
-    """
-    Get the risk level label based on the score.
-    
-    Risk levels:
-      - CRITICAL: 81-100
-      - HIGH: 61-80
-      - MEDIUM: 41-60
-      - LOW: 0-40
-    """
-    val = int(round(score))
-    if val >= 81:
-        return "CRITICAL"
-    elif val >= 61:
-        return "HIGH"
-    elif val >= 41:
-        return "MEDIUM"
-    else:
-        return "LOW"
+        ratio = malicious / total if total > 0 else 0
+        score += int(ratio * 25)
+        
+    # 4. Cap score between 0 and 100
+    final_score = max(0, min(100, score))
+    return final_score

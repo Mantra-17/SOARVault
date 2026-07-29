@@ -155,11 +155,18 @@ function timeAgo(iso) {
   return `${Math.round(mins / 60)}h ago`;
 }
 
+let CAN_APPROVE = false; // set in init() from the session's permissions
+let LAST_METRICS = null; // cached metrics, used by renderStatCards on re-renders
+
 function incidentRow(c) {
   const canAck = c.status === "open" || c.status === "in_progress";
+  const needsApproval = c.status === "pending_approval";
   return `
-    <tr data-case-id="${c.id}">
-      <td class="id-cell">${c.id}</td>
+    <tr data-case-id="${c.id}" data-ioc="${c.ioc || ""}">
+      <td class="id-cell">
+        ${c.id}
+        <div class="id-cell-ioc">${c.ioc || ""}</div>
+      </td>
       <td class="time-cell">${timeAgo(c.created_at || c.opened_at)}</td>
       <td>${(c.ioc_type || "—").toUpperCase()}</td>
       <td><span class="chip ${c.severity}">${c.severity}</span></td>
@@ -167,9 +174,27 @@ function incidentRow(c) {
       <td class="row-actions">
         <button data-view-case="${c.id}">View</button>
         ${canAck ? `<button data-ack-case="${c.id}">Acknowledge</button>` : ""}
+        ${needsApproval && CAN_APPROVE ? `
+          <button class="approve-btn" data-approve-case="${c.id}">Approve</button>
+          <button class="reject-btn" data-reject-case="${c.id}">Reject</button>` : ""}
       </td>
     </tr>`;
 }
+
+function renderApprovalBanner(cases) {
+  const banner = document.getElementById("approval-banner");
+  if (!banner) return;
+  const pending = cases.filter((c) => c.status === "pending_approval");
+
+  if (!CAN_APPROVE || pending.length === 0) {
+    banner.hidden = true;
+    return;
+  }
+  document.getElementById("approval-banner-count").textContent =
+    `${pending.length} incident${pending.length === 1 ? "" : "s"}`;
+  banner.hidden = false;
+}
+
 
 
 function playbookCard(p, canEdit) {
@@ -214,33 +239,77 @@ function closeAllModals() {
   document.querySelectorAll(".modal-overlay").forEach((el) => el.classList.remove("is-open"));
 }
 
+
+function countryFlag(geo) {
+  if (!geo) return "";
+  const match = geo.match(/,\s*([A-Z]{2})$/); // e.g. "Bucharest, RO" -> "RO"
+  if (!match) return "";
+  const code = match[1];
+  const codePoints = [...code].map((c) => 127397 + c.charCodeAt(0));
+  return String.fromCodePoint(...codePoints);
+}
+
+function riskBarColor(score) {
+  if (score >= 80) return "var(--severity-critical)";
+  if (score >= 60) return "var(--severity-high)";
+  if (score >= 40) return "var(--severity-medium)";
+  return "var(--severity-low)";
+}
+
+// Each timeline step type gets its own color, so the chain of
+// custody reads at a glance rather than as a wall of identical text.
+const TIMELINE_STEP_COLORS = {
+  "Ingested": "var(--cyan)",
+  "Enriched": "#a78bfa",
+  "Risk Scored": "var(--severity-medium)",
+  "Playbook Triggered": "var(--severity-high)",
+  "Contained": "var(--severity-low)",
+};
+
+function timelineStepColor(step) {
+  return TIMELINE_STEP_COLORS[step] || "var(--text-muted)";
+}
 function caseDetailHTML(c) {
   const enrichment = c.enrichment || {};
   const timeline = c.timeline || [];
+  const flag = countryFlag(enrichment.geo);
+  const riskColor = riskBarColor(c.risk_score || 0);
+
   return `
     <div class="modal-head">
       <span class="case-id">${c.id}</span>
       <span class="chip ${c.severity}">${c.severity}</span>
     </div>
     <h2>${c.title}</h2>
-    <p class="modal-sub">IOC <code>${c.ioc}</code> · risk score <strong>${c.risk_score}</strong>/100 · status <strong>${c.status.replace("_", " ")}</strong></p>
+
+    <div class="kv-grid detail-grid">
+      <div><span>Alert type</span><strong>${(c.ioc_type || "—").toUpperCase()}</strong></div>
+      <div><span>Source IP / IOC</span><strong>${c.ioc}</strong></div>
+      <div><span>Country</span><strong>${flag ? `${flag} ` : ""}${enrichment.geo || "—"}</strong></div>
+      <div><span>Status</span><strong>${c.status.replace("_", " ")}</strong></div>
+    </div>
+
+    <h3>Risk score</h3>
+    <div class="risk-bar-track">
+      <div class="risk-bar-fill" style="width:${c.risk_score || 0}%; background:${riskColor};"></div>
+    </div>
+    <span class="risk-bar-label" style="color:${riskColor};">${c.risk_score || 0}/100</span>
 
     <h3>Enrichment</h3>
     <div class="kv-grid">
       ${enrichment.abuseipdb_confidence != null ? `<div><span>AbuseIPDB confidence</span><strong>${enrichment.abuseipdb_confidence}%</strong></div>` : ""}
       ${enrichment.virustotal_malicious_votes ? `<div><span>VirusTotal votes</span><strong>${enrichment.virustotal_malicious_votes}</strong></div>` : ""}
-      ${enrichment.geo ? `<div><span>Geo</span><strong>${enrichment.geo}</strong></div>` : ""}
       ${enrichment.asn ? `<div><span>ASN</span><strong>${enrichment.asn}</strong></div>` : ""}
       ${enrichment.first_seen_in_feeds ? `<div><span>First seen</span><strong>${enrichment.first_seen_in_feeds}</strong></div>` : ""}
     </div>
 
-    <h3>Containment timeline</h3>
+    <h3>Actions taken timeline</h3>
     <div class="timeline">
       ${timeline.map((t) => `
         <div class="timeline-step">
-          <span class="timeline-offset">t+${t.offset_seconds}s</span>
+          <span class="timeline-offset" style="color:${timelineStepColor(t.step)};">T+${t.offset_seconds}s</span>
           <div>
-            <strong>${t.step}</strong>
+            <strong style="color:${timelineStepColor(t.step)};">${t.step}</strong>
             <p>${t.detail}</p>
           </div>
         </div>`).join("")}
@@ -281,6 +350,84 @@ function playbookEditorHTML(p) {
     </div>`;
 }
 
+// ---------- Live incident feed (auto-refresh every 5s) ----------
+
+async function fetchIncidents(cases, onUpdate) {
+  const spinner = document.getElementById("incidents-spinner");
+  if (spinner) spinner.hidden = false;
+
+  try {
+    const latest = await fetchJSON("/api/incidents", null);
+    if (latest) {
+      const knownIds = new Set(cases.map((c) => c.id));
+      const newOnes = latest.filter((c) => !knownIds.has(c.id));
+
+      if (newOnes.length) {
+        // Newest first, at the top of the list.
+        cases.unshift(...newOnes);
+        onUpdate(newOnes.map((c) => c.id));
+      }
+    }
+  } catch (e) {
+    // Silently skip this poll cycle — next interval tick will retry.
+  } finally {
+    if (spinner) spinner.hidden = true;
+  }
+}
+
+function renderStatCards(cases, metrics) {
+  const mttrEl = document.getElementById("statcard-mttr");
+  const autoResolvedEl = document.getElementById("statcard-autoresolved");
+  const criticalEl = document.getElementById("statcard-critical");
+  if (!mttrEl) return; // Cases view not in the DOM yet
+
+  const mttr = metrics && typeof metrics.mttr_avg_seconds === "number"
+    ? metrics.mttr_avg_seconds.toFixed(1)
+    : "—";
+  mttrEl.textContent = mttr;
+
+  const total = cases.length;
+  const autoResolved = cases.filter((c) => c.status === "resolved_auto" || c.status === "contained").length;
+  autoResolvedEl.textContent = total ? `${Math.round((autoResolved / total) * 100)}%` : "—";
+
+  const criticalOpen = cases.filter(
+    (c) => c.severity === "critical" && c.status !== "closed" && c.status !== "closed_false_positive"
+  ).length;
+  criticalEl.textContent = criticalOpen;
+}
+
+// Severity filter + search state (Day 12/13)
+let ACTIVE_SEVERITY = "all";
+let SEARCH_QUERY = "";
+
+function applyIncidentFilters() {
+  const rows = document.querySelectorAll("#incidents-table-body tr");
+  const query = SEARCH_QUERY.trim().toLowerCase();
+
+  rows.forEach((row) => {
+    const severity = row.querySelector(".chip")?.classList[1] || "";
+    const rowText = row.textContent.toLowerCase();
+
+    const matchesSeverity = ACTIVE_SEVERITY === "all" || severity === ACTIVE_SEVERITY;
+    const matchesSearch = !query || rowText.includes(query);
+
+    row.classList.toggle("is-filtered-out", !(matchesSeverity && matchesSearch));
+  });
+}
+
+function renderIncidentsTable(cases, newIds = [], metrics = null) {
+  document.getElementById("incidents-table-body").innerHTML = cases.map(incidentRow).join("");
+  newIds.forEach((id) => {
+    const row = document.querySelector(`#incidents-table-body tr[data-case-id="${id}"]`);
+    if (row) row.classList.add("is-new");
+  });
+  renderStats(cases);
+  renderApprovalBanner(cases);
+  renderStatCards(cases, metrics || LAST_METRICS);
+  applyIncidentFilters();
+}
+
+
 // ---------- View switching ----------
 
 function switchView(view) {
@@ -306,8 +453,9 @@ async function init() {
   const session = requireSession();
   if (!session) return; // redirected to login
 
-  renderUserCard(session);
- const canEditPlaybooks = (session.permissions || []).includes("edit");
+ renderUserCard(session);
+  const canEditPlaybooks = (session.permissions || []).includes("edit");
+  CAN_APPROVE = (session.permissions || []).includes("approve");
   document.getElementById("playbook-edit-hint").textContent = canEditPlaybooks
     ? "editable — playbook changes require peer review"
     : "read-only for your role";
@@ -322,11 +470,11 @@ async function init() {
 
 renderMTTR(metrics);
   renderKPIs(metrics);
-  renderStats(cases);
+  LAST_METRICS = metrics;
 
   const casesHTML = cases.map(caseRow).join("");
   document.getElementById("cases-table").innerHTML = casesHTML;
-  document.getElementById("incidents-table-body").innerHTML = cases.map(incidentRow).join("");
+  renderIncidentsTable(cases, [], metrics);
 
   const alertsHTML = alerts.map(alertRow).join("");
   document.getElementById("alerts-list").innerHTML = alertsHTML;
@@ -338,11 +486,31 @@ renderMTTR(metrics);
   document.getElementById("integrations-grid").innerHTML =
     integrations.map(integrationCard).join("");
 
-  // Nav
+// Nav
   document.querySelectorAll(".nav-item").forEach((btn) => {
     btn.addEventListener("click", () => switchView(btn.dataset.view));
   });
+document.getElementById("approval-banner").addEventListener("click", (e) => {
+    const link = e.target.closest("[data-view]");
+    if (link) switchView(link.dataset.view);
+  });
 
+  // Severity filter buttons (Day 12)
+  document.getElementById("severity-filter").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-severity]");
+    if (!btn) return;
+    ACTIVE_SEVERITY = btn.dataset.severity;
+    document.querySelectorAll("#severity-filter .filter-btn").forEach((b) => {
+      b.classList.toggle("is-active", b === btn);
+    });
+    applyIncidentFilters();
+  });
+
+  // Incident search bar (Day 13) — search by IP, type, or case ID
+  document.getElementById("incident-search").addEventListener("input", (e) => {
+    SEARCH_QUERY = e.target.value;
+    applyIncidentFilters();
+  });
   // Case row -> detail modal
   document.body.addEventListener("click", async (e) => {
     const viewBtn = e.target.closest("[data-view-case]");
@@ -355,14 +523,43 @@ renderMTTR(metrics);
       return;
     }
 
-    const ackBtn = e.target.closest("[data-ack-case]");
+const ackBtn = e.target.closest("[data-ack-case]");
     if (ackBtn) {
       const id = ackBtn.dataset.ackCase;
       const updated = await fetchJSON(`/api/cases/${id}/ack`, null, { method: "POST" });
       const idx = cases.findIndex((c) => c.id === id);
       if (idx > -1) cases[idx].status = (updated && updated.status) || "acknowledged";
+renderIncidentsTable(cases);
+      return;
+    }
+
+    const approveBtn = e.target.closest("[data-approve-case]");
+    if (approveBtn) {
+      const id = approveBtn.dataset.approveCase;
+      const updated = await fetchJSON(`/api/approve/${id}`, null, {
+        method: "POST",
+        headers: { "X-Role": session.role },
+      });
+      const idx = cases.findIndex((c) => c.id === id);
+      if (idx > -1 && updated) cases[idx] = { ...cases[idx], ...updated };
       document.getElementById("incidents-table-body").innerHTML = cases.map(incidentRow).join("");
       renderStats(cases);
+      renderApprovalBanner(cases);
+      return;
+    }
+
+    const rejectBtn = e.target.closest("[data-reject-case]");
+    if (rejectBtn) {
+      const id = rejectBtn.dataset.rejectCase;
+      const updated = await fetchJSON(`/api/reject/${id}`, null, {
+        method: "POST",
+        headers: { "X-Role": session.role },
+      });
+      const idx = cases.findIndex((c) => c.id === id);
+      if (idx > -1 && updated) cases[idx] = { ...cases[idx], ...updated };
+      document.getElementById("incidents-table-body").innerHTML = cases.map(incidentRow).join("");
+      renderStats(cases);
+      renderApprovalBanner(cases);
       return;
     }
     const caseEl = e.target.closest("[data-case-id]");
@@ -418,6 +615,13 @@ renderMTTR(metrics);
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") closeAllModals();
   });
+
+  // Live incident feed: poll for new incidents every 5 seconds.
+  setInterval(() => {
+    fetchIncidents(cases, (newIds) => renderIncidentsTable(cases, newIds));
+  }, 5000);
 }
+  
+
 
 document.addEventListener("DOMContentLoaded", init);

@@ -1,22 +1,25 @@
 import time
-from playbooks.engine import ActionResult
+from datetime import datetime
+from . import ActionResult
 from playbooks.mock_edr import MockEDR
 
-def isolate_host(host_id: str, dry_run: bool = False) -> ActionResult:
-    """Isolate a host using the EDR."""
-    start = time.time()
-    edr = MockEDR()
+def isolate_host_edr(host_id: str) -> ActionResult:
+    """
+    Isolates a host using EDR (CrowdStrike mock API).
+    """
+    start_time = time.time()
     
-    status = "success"
-    if not dry_run:
-        status = edr.isolate(host_id)
-        
-    end = time.time()
+    # Use the mock EDR client
+    edr = MockEDR()
+    result = edr.isolate(host_id)
+    
+    duration_ms = int((time.time() - start_time) * 1000)
     
     return ActionResult(
-        action="isolate_host",
+        action="isolate_host_edr",
         target=host_id,
-        status=status if not dry_run else "dry_run_success",
-        duration_ms=int((end - start) * 1000),
+        status=result.get("status", "success"),
+        timestamp=datetime.utcnow().isoformat(),
+        duration_ms=duration_ms,
         reversible=True
     )

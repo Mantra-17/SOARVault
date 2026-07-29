@@ -1,28 +1,38 @@
-from typing import Dict, Any
-from .engine import PlaybookEngine
-
-def get_execution_report(engine: PlaybookEngine, case_id: str) -> Dict[str, Any]:
+def generate_containment_report(case: dict) -> str:
     """
-    Generate an execution summary for a specific case.
+    Generates a structured markdown report of the incident and its containment actions.
     """
-    if case_id not in engine.case_history:
-        return {"error": "Case not found"}
-        
-    result = engine.case_history[case_id]
+    enrichment = case.get("enrichment", {})
+    timeline = case.get("timeline", [])
     
-    actions_summary = []
-    for action in result.actions_taken:
-        actions_summary.append({
-            "action": action.action,
-            "target": action.target,
-            "status": action.status,
-            "duration_ms": action.duration_ms
-        })
+    report = f"""# SOAR Incident Containment Report: {case.get('id', 'N/A')}
+**Generated At:** {case.get('created_at', 'N/A')}
+**Status:** {case.get('status', 'N/A').upper()}
+**Severity:** {case.get('severity', 'N/A').upper()}
+
+## 1. Incident Overview
+* **Title:** {case.get('title', 'N/A')}
+* **Indicator of Compromise (IOC):** `{case.get('ioc', 'N/A')}` ({case.get('ioc_type', 'N/A').upper()})
+* **Calculated Risk Score:** {case.get('risk_score', 0)}/100
+
+## 2. Threat Intelligence Enrichment
+* **GeoIP Location:** {enrichment.get('geo', 'N/A')}
+* **ASN:** {enrichment.get('asn', 'N/A')}
+* **AbuseIPDB Confidence Score:** {enrichment.get('abuseipdb_confidence', 'N/A')}%
+* **VirusTotal Malicious Votes:** {enrichment.get('virustotal_malicious_votes', 'N/A')}
+* **First Seen in Security Feeds:** {enrichment.get('first_seen_in_feeds', 'N/A')}
+
+## 3. Automation Playbook Execution
+* **Playbook Name/ID:** `{case.get('playbook', 'None')}`
+
+### Execution Timeline:
+"""
+    for step in timeline:
+        offset = step.get('offset_seconds', 0)
+        report += f"- **T+{offset}s**: {step.get('step')} - {step.get('detail')}\n"
         
-    return {
-        "case_id": case_id,
-        "status": result.status,
-        "total_execution_time_ms": result.execution_time_ms,
-        "actions_taken": actions_summary,
-        "rollback_available": result.rollback_available
-    }
+    mttr = case.get('mttr_seconds')
+    if mttr:
+        report += f"\n## 4. Performance Summary\n* **Mean Time to Respond (MTTR):** {mttr} seconds\n"
+        
+    return report

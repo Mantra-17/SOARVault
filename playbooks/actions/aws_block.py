@@ -1,17 +1,24 @@
 import time
-from playbooks.engine import ActionResult
+import random
+from datetime import datetime
+from . import ActionResult
 
-def add_security_group_rule(ip: str, group_id: str, dry_run: bool = False) -> ActionResult:
-    """Mock boto3 Security Group rule addition."""
-    start = time.time()
-    if not dry_run:
-        time.sleep(0.2)
-    end = time.time()
+def quarantine_security_group(instance_id: str) -> ActionResult:
+    """
+    Mock AWS EC2 isolation. Changes the instance's security group to a quarantine group.
+    """
+    start_time = time.time()
+    
+    # Simulate AWS API delay
+    time.sleep(random.uniform(0.2, 0.4))
+    
+    duration_ms = int((time.time() - start_time) * 1000)
     
     return ActionResult(
-        action="aws_sg_block",
-        target=f"{group_id}:{ip}",
-        status="success" if not dry_run else "dry_run_success",
-        duration_ms=int((end - start) * 1000),
+        action="quarantine_security_group",
+        target=instance_id,
+        status="success",
+        timestamp=datetime.utcnow().isoformat(),
+        duration_ms=duration_ms,
         reversible=True
     )

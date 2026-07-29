@@ -1,84 +1,56 @@
-import unittest
+import pytest
+from ingestion.schema import RawAlert
+from ingestion.normalizer import normalize_alert
+from enrichment.risk_scorer import calculate_risk_score
 from playbooks.engine import PlaybookEngine
-from playbooks.report import get_execution_report
 
-class TestPlaybooks(unittest.TestCase):
-    def setUp(self):
-        self.engine = PlaybookEngine()
+def test_normalization():
+    raw = RawAlert(
+        source="Splunk SIEM",
+        rule_name="Outbound connection to Tor exit node",
+        severity="critical",
+        ioc_type="ip",
+        ioc_value="1.2.3.4"
+    )
+    normalized = normalize_alert(raw)
+    assert normalized.source == "Splunk SIEM"
+    assert normalized.severity == "critical"
+    assert normalized.ioc_type == "ip"
+    assert normalized.ioc_value == "1.2.3.4"
+    assert normalized.enrichment_status == "queued"
 
-    def test_brute_force_high_risk(self):
-        alert = {"type": "brute_force", "source_ip": "192.168.1.1"}
-        result = self.engine.execute(alert, risk_score=90, case_id="case-1")
-        self.assertEqual(result.status, "success")
-        self.assertEqual(len(result.actions_taken), 2)
-        self.assertEqual(result.actions_taken[0].action, "block_ip")
-        
-    def test_brute_force_low_risk(self):
-        alert = {"type": "brute_force", "source_ip": "192.168.1.1"}
-        result = self.engine.execute(alert, risk_score=30, case_id="case-2")
-        self.assertEqual(result.status, "success")
-        self.assertEqual(len(result.actions_taken), 1)
-        self.assertEqual(result.actions_taken[0].action, "send_notification")
-        self.assertEqual(result.actions_taken[0].target, "INFO")
-        
-    def test_malware_high_risk(self):
-        alert = {"type": "malware", "host_id": "host-1", "source_ip": "10.0.0.1"}
-        result = self.engine.execute(alert, risk_score=85, case_id="case-3")
-        self.assertEqual(result.status, "success")
-        self.assertEqual(len(result.actions_taken), 3)
-        self.assertEqual(result.actions_taken[0].action, "isolate_host")
-        
-    def test_ddos_high_risk(self):
-        alert = {"type": "ddos", "source_ip": "192.168.1.5"}
-        result = self.engine.execute(alert, risk_score=75, case_id="case-4")
-        self.assertEqual(len(result.actions_taken), 3)
-        self.assertEqual(result.actions_taken[1].action, "rate_limit")
-        
-    def test_data_exfil_high_risk(self):
-        alert = {"type": "data_exfil", "host_id": "server-1"}
-        result = self.engine.execute(alert, risk_score=80, case_id="case-5")
-        self.assertEqual(len(result.actions_taken), 3)
-        self.assertEqual(result.actions_taken[1].action, "block_outbound")
-        
-    def test_insider_threat_high_risk(self):
-        alert = {"type": "insider_threat", "user_id": "jdoe", "hour_of_day": 23, "unusual_access": True}
-        result = self.engine.execute(alert, risk_score=90, case_id="case-6")
-        self.assertEqual(len(result.actions_taken), 2)
-        self.assertEqual(result.actions_taken[0].action, "disable_account")
+def test_risk_scoring():
+    # Critical base (65) + Abuse score 90 (18) + VT malicious 68/72 (23) = 100 (capped)
+    score = calculate_risk_score("critical", 90, "68/72")
+    assert score == 100
+    
+    # Low base (10) + no enrichment = 10
+    score = calculate_risk_score("low", None, None)
+    assert score == 10
+    
+    # High base (45) + Abuse score 50 (10) + VT malicious 36/72 (12) = 67
+    score = calculate_risk_score("high", 50, "36/72")
+    assert score == 67
 
-    def test_unknown_alert_type(self):
-        alert = {"type": "unknown_type"}
-        result = self.engine.execute(alert, risk_score=100, case_id="case-7")
-        self.assertEqual(result.status, "failed - unknown alert type")
-
-    def test_rollback(self):
-        alert = {"type": "brute_force", "source_ip": "192.168.1.1"}
-        self.engine.execute(alert, risk_score=90, case_id="case-8")
-        self.assertTrue(self.engine.undo_actions("case-8"))
-        result = self.engine.case_history["case-8"]
-        self.assertFalse(result.rollback_available)
-        self.assertEqual(result.actions_taken[0].status, "rolled_back")
-
-    def test_auto_rollback(self):
-        alert = {"type": "brute_force", "source_ip": "192.168.1.1"}
-        self.engine.execute(alert, risk_score=90, case_id="case-9")
-        self.assertTrue(self.engine.check_auto_rollback("case-9", current_risk_score=40, hours_elapsed=1.5))
-        
-    def test_dry_run(self):
-        alert = {"type": "brute_force", "source_ip": "192.168.1.1"}
-        result = self.engine.execute(alert, risk_score=90, case_id="case-10", dry_run=True)
-        self.assertEqual(result.actions_taken[0].status, "dry_run_success")
-        
-    def test_execution_report(self):
-        alert = {"type": "brute_force", "source_ip": "192.168.1.1"}
-        self.engine.execute(alert, risk_score=90, case_id="case-11")
-        report = get_execution_report(self.engine, "case-11")
-        self.assertEqual(report["case_id"], "case-11")
-        self.assertEqual(report["status"], "success")
-        self.assertEqual(len(report["actions_taken"]), 2)
-        
-    def test_rollback_invalid_case(self):
-        self.assertFalse(self.engine.undo_actions("invalid-case"))
-
-if __name__ == '__main__':
-    unittest.main()
+def test_playbook_matching():
+    engine = PlaybookEngine()
+    
+    # Match critical IP alert (should trigger isolate-ec2-and-block-ip)
+    alert_ctx = {
+        "risk_score": 90,
+        "ioc_type": "ip",
+        "severity": "critical"
+    }
+    pb = engine.select_playbook(alert_ctx)
+    assert pb is not None
+    assert pb["id"] == "isolate-ec2-and-block-ip"
+    
+    # Match medium hash alert (should trigger quarantine-endpoint)
+    alert_ctx = {
+        "risk_score": 55,
+        "ioc_type": "hash",
+        "severity": "medium"
+    }
+    pb = engine.select_playbook(alert_ctx)
+    assert pb is not None
+    assert pb["id"] == "quarantine-endpoint"

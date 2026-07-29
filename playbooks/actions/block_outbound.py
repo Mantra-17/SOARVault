@@ -1,17 +1,21 @@
 import time
-from playbooks.engine import ActionResult
+import random
+from datetime import datetime
+from . import ActionResult
 
-def block_outbound(host_id: str, dry_run: bool = False) -> ActionResult:
-    """Mock firewall outbound rule addition."""
-    start = time.time()
-    if not dry_run:
-        time.sleep(0.1)
-    end = time.time()
+def block_outbound_traffic(target: str) -> ActionResult:
+    """
+    Mock block outbound traffic for an IP or subnet.
+    """
+    start_time = time.time()
+    time.sleep(random.uniform(0.1, 0.25))
+    duration_ms = int((time.time() - start_time) * 1000)
     
     return ActionResult(
-        action="block_outbound",
-        target=host_id,
-        status="success" if not dry_run else "dry_run_success",
-        duration_ms=int((end - start) * 1000),
+        action="block_outbound_traffic",
+        target=target,
+        status="success",
+        timestamp=datetime.utcnow().isoformat(),
+        duration_ms=duration_ms,
         reversible=True
     )
