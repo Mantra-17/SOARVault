@@ -46,3 +46,13 @@
 {"timestamp": "2026-07-29T07:44:23.808793+00:00", "event_type": "alert_normalized", "actor": "normalizer", "details": {"alert_id": "af4ad786-747d-4e41-b5ba-1a8b65dd82c7", "type": "brute_force"}}
 {"timestamp": "2026-07-29T07:44:24.310888+00:00", "event_type": "alert_ingested", "actor": "orchestrator", "details": {"alert_hash": "d8e47ea2ced0cfd508b348d65a0efad6a60ec1a31a39be58f0ac43ad192340e4"}}
 {"timestamp": "2026-07-29T07:44:24.311641+00:00", "event_type": "alert_normalized", "actor": "normalizer", "details": {"alert_id": "f2950b8d-fece-4b6e-9fc9-50a0558f83da", "type": "brute_force"}}
+{"timestamp": "2026-07-29T07:46:21.723968+00:00", "event_type": "alert_ingested", "actor": "orchestrator", "details": {"alert_hash": "ed7698c373cee43f0324ef36193fbfefbd86f5075f4819391cac7d6b6123e341"}}
+{"timestamp": "2026-07-29T07:46:21.724254+00:00", "event_type": "alert_normalized", "actor": "normalizer", "details": {"alert_id": "944b0157-59a3-49cf-8ef4-aa65ed101881", "type": "unknown"}}
+{"timestamp": "2026-07-29T07:46:21.731536+00:00", "event_type": "alert_ingested", "actor": "orchestrator", "details": {"alert_hash": "09a2988ada1a3ef92a8731085e7e3cd06cb6ce6caaad17fe50d0e3b7358ec484"}}
+{"timestamp": "2026-07-29T07:46:21.731744+00:00", "event_type": "alert_normalized", "actor": "normalizer", "details": {"alert_id": "96b63f5c-9022-4786-bdfa-008d49c7f3f7", "type": "unknown"}}
+{"timestamp": "2026-07-29T07:46:21.735417+00:00", "event_type": "alert_ingested", "actor": "orchestrator", "details": {"alert_hash": "eeede4c091434e2f8bad423e69ae75bca99464028d9960fdb928507f4617256f"}}
+{"timestamp": "2026-07-29T07:46:21.735658+00:00", "event_type": "alert_normalized", "actor": "normalizer", "details": {"alert_id": "0286eb27-5c3a-48f2-93e6-f5af1013994e", "type": "unknown"}}
+{"timestamp": "2026-07-29T07:46:21.742400+00:00", "event_type": "alert_ingested", "actor": "orchestrator", "details": {"alert_hash": "eb9d22db5f75f3fa02e47393f9b775072e11adaa8a09ae5f469e9eeb9a537a50"}}
+{"timestamp": "2026-07-29T07:46:21.742526+00:00", "event_type": "alert_normalized", "actor": "normalizer", "details": {"alert_id": "2d6c61fb-de95-4351-9163-a51c5bbb8914", "type": "brute_force"}}
+{"timestamp": "2026-07-29T07:46:22.256635+00:00", "event_type": "alert_ingested", "actor": "orchestrator", "details": {"alert_hash": "aff28aca8b83b75638f531e867cd4ff4f86e6a3a506027e6b6dc43027c0ab22d"}}
+{"timestamp": "2026-07-29T07:46:22.257472+00:00", "event_type": "alert_normalized", "actor": "normalizer", "details": {"alert_id": "59abb6f3-e8ff-401b-8fab-aa7fab953a04", "type": "brute_force"}}

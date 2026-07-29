@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import Any, Dict, List
 from fastapi import FastAPI, HTTPException, Request
@@ -12,11 +13,30 @@ from .audit import audit_logger
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
+
+class LimitRequestSizeMiddleware(BaseHTTPMiddleware):
+    """Rejects incoming HTTP requests larger than MAX_SIZE_BYTES (1 MB)."""
+    MAX_SIZE_BYTES = 1_048_576
+
+    async def dispatch(self, request: Request, call_next):
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > self.MAX_SIZE_BYTES:
+            return Response(
+                content=json.dumps({"detail": "Payload too large. Max request body is 1 MB."}),
+                status_code=413,
+                media_type="application/json"
+            )
+        return await call_next(request)
+
 app = FastAPI(
     title="SOARVault Ingestion API",
     description="Webhook receiver and orchestration entrypoint for SIEM alerts.",
     version="1.0.0"
 )
+
+app.add_middleware(LimitRequestSizeMiddleware)
 
 # Global Orchestrator instance
 orchestrator = IncidentOrchestrator()
