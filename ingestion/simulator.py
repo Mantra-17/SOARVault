@@ -1,69 +1,109 @@
-import time
+import asyncio
+import httpx
+import json
 import random
-import threading
-from datetime import datetime
-from ingestion.schema import RawAlert
-from ingestion.main import ingest_raw_alert
+import time
+from datetime import datetime, timezone
+from typing import Dict, Any
 
-def generate_random_alert() -> RawAlert:
-    """Generates a realistic security alert from a random scenario."""
-    scenarios = [
-        {
-            "source": "Splunk SIEM",
-            "rule_name": "Outbound connection to Tor exit node",
-            "severity": "critical",
-            "ioc_type": "ip",
-            # We occasionally generate the exact demo IP to trigger default enrichment cache mappings
-            "ioc_value": random.choice(["185.220.101.7", f"185.220.101.{random.randint(10, 250)}"])
-        },
-        {
-            "source": "QRadar SIEM",
-            "rule_name": "Repeated auth failures across 40 accounts",
-            "severity": "high",
-            "ioc_value": random.choice(["45.83.64.22", f"45.83.64.{random.randint(10, 250)}"])
-        },
-        {
-            "source": "CrowdStrike EDR",
-            "rule_name": "Known-malicious binary hash executed",
-            "severity": "medium",
-            "ioc_type": "hash",
-            "ioc_value": random.choice(["d41d8cd98f00b204e9800998ecf8427e", f"bad_hash_{random.randint(100, 999)}"])
-        },
-        {
-            "source": "Palo Alto Firewall",
-            "rule_name": "Port scan detected from internal host",
-            "severity": "low",
-            "ioc_type": "ip",
-            "ioc_value": f"192.0.2.{random.randint(10, 250)}"
+class AlertSimulator:
+    """Generates mock SIEM payloads mimicking real-world alerts."""
+    
+    VENDORS = ["Splunk", "QRadar", "Elastic", "CrowdStrike"]
+
+    def _base_alert(self, title: str) -> Dict[str, Any]:
+        """Base structure for all generated alerts."""
+        vendor = random.choice(self.VENDORS)
+        return {
+            "vendor": vendor,
+            "title": f"[{vendor}] {title}",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "raw_severity": random.choice(["high", "medium", "critical", "low", 1, 2, 3, 4, 5]),
+            "event_id": f"evt-{random.randint(1000, 9999)}"
         }
-    ]
-    
-    choice = random.choice(scenarios)
-    return RawAlert(
-        source=choice["source"],
-        rule_name=choice["rule_name"],
-        severity=choice["severity"],
-        ioc_type=choice.get("ioc_type", "ip"),
-        ioc_value=choice["ioc_value"],
-        received_at=datetime.utcnow().isoformat()
-    )
 
-def _simulator_loop():
-    print("[*] Background Alert Simulator Loop started.")
-    # Wait for the main Flask application to fully start
-    time.sleep(10)
-    
-    while True:
-        try:
-            alert = generate_random_alert()
-            print(f"[*] Simulator: Triggering raw alert: '{alert.rule_name}' from {alert.source}")
-            ingest_raw_alert(alert)
-        except Exception as e:
-            print(f"[!] Error in simulator loop: {e}")
-        time.sleep(random.uniform(15.0, 25.0))
+    def generate_brute_force(self) -> Dict[str, Any]:
+        alert = self._base_alert("Multiple Failed Logins")
+        alert.update({
+            "source_ip": f"192.168.1.{random.randint(10, 250)}",
+            "destination_ip": "10.0.0.5",
+            "username": "admin",
+            "action": "login_failed",
+            "count": random.randint(5, 50)
+        })
+        return alert
 
-def start_simulator():
-    """Starts the alert simulator in a background daemon thread."""
-    thread = threading.Thread(target=_simulator_loop, daemon=True)
-    thread.start()
-    return thread
+    def generate_malware(self) -> Dict[str, Any]:
+        alert = self._base_alert("Malware Detected")
+        alert.update({
+            "hostname": f"DESKTOP-{random.randint(100,999)}",
+            "file_hash": "44d88612fea8a8f36de82e1278abb02f",
+            "file_path": "C:\\Windows\\Temp\\malicious.exe",
+            "action": "quarantined"
+        })
+        return alert
+
+    def generate_ddos(self) -> Dict[str, Any]:
+        alert = self._base_alert("Volumetric DDoS Traffic Detected")
+        alert.update({
+            "destination_ip": "10.0.0.100",
+            "bytes_received": random.randint(1000000, 50000000),
+            "protocol": "UDP",
+            "action": "allowed"
+        })
+        return alert
+
+    def generate_insider_threat(self) -> Dict[str, Any]:
+        alert = self._base_alert("Unusual Access to Confidential Data")
+        alert.update({
+            "username": "jdoe",
+            "department": "Engineering",
+            "file_accessed": "HR_Salaries_2026.xlsx",
+            "action": "read"
+        })
+        return alert
+
+    def generate_data_exfiltration(self) -> Dict[str, Any]:
+        alert = self._base_alert("Large Outbound Data Transfer")
+        alert.update({
+            "source_ip": "10.0.1.50",
+            "destination_ip": f"185.10.2.{random.randint(1,200)}",
+            "bytes_sent": random.randint(5000000, 20000000),
+            "action": "allowed"
+        })
+        return alert
+
+    def get_random_alert(self) -> Dict[str, Any]:
+        generators = [
+            self.generate_brute_force,
+            self.generate_malware,
+            self.generate_ddos,
+            self.generate_insider_threat,
+            self.generate_data_exfiltration
+        ]
+        return random.choice(generators)()
+
+async def blast_server(num_requests: int = 100):
+    """Blast the FastAPI server with generated alerts."""
+    simulator = AlertSimulator()
+    url = "http://127.0.0.1:8000/webhook/alert"
+    
+    print(f"Blasting {url} with {num_requests} requests...")
+    start_time = time.time()
+    
+    async with httpx.AsyncClient() as client:
+        tasks = []
+        for _ in range(num_requests):
+            payload = simulator.get_random_alert()
+            tasks.append(client.post(url, json=payload))
+            
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+    
+    end_time = time.time()
+    success = sum(1 for r in results if not isinstance(r, Exception) and r.status_code in (200, 202))
+    
+    print(f"Finished in {end_time - start_time:.2f} seconds.")
+    print(f"Successful requests: {success}/{num_requests}")
+
+if __name__ == "__main__":
+    asyncio.run(blast_server(50))

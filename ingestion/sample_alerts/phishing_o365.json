@@ -1,0 +1,10 @@
+{
+  "rule.name": "O365 Spear Phishing",
+  "level": 4,
+  "category": "phishing",
+  "sender": "attacker@evil.ru",
+  "recipient": "ceo@company.com",
+  "url": "http://evil.ru/login",
+  "start_time": "2024-03-15T19:00:00+02:00",
+  "details": "Malicious link detected in incoming email."
+}

@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  soar-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: soarvault-api
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=production
+      - LOG_LEVEL=info
+    restart: unless-stopped
+    # If other dependencies like Redis or Postgres are added, uncomment below:
+    # depends_on:
+    #   - redis
+    #   - db
+    networks:
+      - soar_network
+
+# networks:
+#   soar_network:
+#     driver: bridge
+
+networks:
+  soar_network:
+    name: soarvault_network
