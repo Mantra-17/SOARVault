@@ -92,3 +92,17 @@ def check_ioc(ioc: str, ioc_type: str) -> dict:
         "meaningful_name": "wannacry.exe" if is_malicious else "clean_utility.exe",
         "reputation": -100 if is_malicious else 50
     }
+
+
+# ---------------------------------------------------------------------------
+# Convenience aliases used by test files
+# ---------------------------------------------------------------------------
+
+def check_hash(file_hash: str) -> dict:
+    """Convenience wrapper for file hash lookups."""
+    return check_ioc(file_hash, "hash")
+
+
+def check_domain(domain: str) -> dict:
+    """Convenience wrapper for domain lookups."""
+    return check_ioc(domain, "domain")

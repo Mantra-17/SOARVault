@@ -71,3 +71,7 @@ def get_geoip(ip: str) -> dict:
         "asn": "AS15169 (Google LLC)",
         "isp": "Google LLC"
     }
+
+
+# Public alias — test_enrichment.py imports get_geolocation
+get_geolocation = get_geoip
