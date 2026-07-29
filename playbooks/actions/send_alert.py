@@ -1,25 +1,17 @@
 import time
-import random
-from datetime import datetime
-from . import ActionResult
+from playbooks.engine import ActionResult
 
-def send_notification(message: str, severity: str) -> ActionResult:
-    """
-    Mock Slack webhook call with a realistic response delay.
-    """
-    start_time = time.time()
-    
-    # Simulate network delay (50-150ms)
-    time.sleep(random.uniform(0.05, 0.15))
-    
-    status = "success" if random.random() > 0.05 else "failed"
-    duration_ms = int((time.time() - start_time) * 1000)
+def send_notification(message: str, severity: str, dry_run: bool = False) -> ActionResult:
+    """Mock Slack webhook call for sending notifications."""
+    start = time.time()
+    if not dry_run:
+        time.sleep(0.02)
+    end = time.time()
     
     return ActionResult(
         action="send_notification",
-        target="slack_webhook",
-        status=status,
-        timestamp=datetime.utcnow().isoformat(),
-        duration_ms=duration_ms,
+        target=severity,
+        status="success" if not dry_run else "dry_run_success",
+        duration_ms=int((end - start) * 1000),
         reversible=False
     )
