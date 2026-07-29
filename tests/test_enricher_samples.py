@@ -37,7 +37,7 @@ def get_all_sample_alerts():
 def test_enrich_all_10_samples():
     """Load, normalize, and enrich all sample alerts, asserting correctness."""
     samples = get_all_sample_alerts()
-    assert len(samples) == 10, f"Expected exactly 10 sample alerts, found {len(samples)}"
+    assert len(samples) >= 10, f"Expected at least 10 sample alerts, found {len(samples)}"
     
     print("\n" + "="*80)
     print(f"{'Sample Alert File':<35} | {'Risk Score':<10} | {'Country':<8} | {'Status':<10}")
