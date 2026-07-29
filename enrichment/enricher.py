@@ -12,8 +12,21 @@ def enrich_alert(alert: NormalizedAlert) -> dict:
     Retrieves data from Cache/GeoIP/AbuseIPDB/VirusTotal, scores the risk, 
     and caches the results.
     """
-    ioc = alert.ioc_value
-    ioc_type = alert.ioc_type
+    ioc = alert.ioc_value       # computed property - primary IoC value
+    ioc_type = alert.ioc_type   # computed property - "ip" | "hash" | etc.
+
+    if not ioc:
+        # No extractable IoC - return minimal result without querying APIs
+        return {
+            "risk_score": 0,
+            "enrichment": {
+                "abuseipdb_confidence": None,
+                "virustotal_malicious_votes": None,
+                "geo": None,
+                "asn": None,
+                "first_seen_in_feeds": None,
+            }
+        }
     
     # Try loading from cache
     cached = get_cached_ioc(ioc)

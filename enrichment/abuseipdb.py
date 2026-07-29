@@ -18,7 +18,7 @@ def check_ip(ip: str) -> dict:
             url = "https://api.abuseipdb.com/api/v2/check"
             headers = {
                 "Key": api_key,
-                "Accept": application/json
+                "Accept": "application/json"
             }
             params = {
                 "ipAddress": ip,
@@ -31,12 +31,14 @@ def check_ip(ip: str) -> dict:
                 if res.status_code == 200:
                     data = res.json().get("data", {})
                     return {
-                        "abuse_confidence_score": data.get("abuseConfidenceScore", 0),
+                        "abuse_score": data.get("abuseConfidenceScore", 0),
                         "total_reports": data.get("totalReports", 0),
-                        "country_code": data.get("countryCode", "US"),
+                        "country": data.get("countryCode", "US"),
                         "isp": data.get("isp", "Unknown ISP"),
                         "domain": data.get("domain", ""),
-                        "last_reported": data.get("lastReportedAt", "")
+                        "last_reported_at": data.get("lastReportedAt", ""),
+                        # backward-compat key
+                        "abuse_confidence_score": data.get("abuseConfidenceScore", 0),
                     }
         except Exception as e:
             print(f"[*] AbuseIPDB API request failed, falling back to mock: {e}")
@@ -47,12 +49,13 @@ def check_ip(ip: str) -> dict:
         # Simple private IP checks
         if parts[0] == "10" or (parts[0] == "192" and parts[1] == "168") or (parts[0] == "172" and 16 <= int(parts[1]) <= 31):
             return {
-                "abuse_confidence_score": 0,
+                "abuse_score": 0,
                 "total_reports": 0,
-                "country_code": "US",
+                "country": "US",
                 "isp": "Private Network",
                 "domain": "local",
-                "last_reported": None
+                "last_reported_at": None,
+                "abuse_confidence_score": 0,
             }
         
     # Mock fallback mapping based on the last octet
@@ -93,22 +96,32 @@ def check_ip(ip: str) -> dict:
             with open(mock_file, "r") as f:
                 data = json.load(f)
                 return {
-                    "abuse_confidence_score": data.get("abuse_confidence_score", 0),
+                    "abuse_score": data.get("abuse_confidence_score", data.get("abuse_score", 0)),
                     "total_reports": data.get("total_reports", 0),
-                    "country_code": data.get("country_code", "US"),
+                    "country": data.get("country", data.get("country_code", "US")),
                     "isp": data.get("isp", "Mock ISP"),
                     "domain": data.get("domain", ""),
-                    "last_reported": data.get("last_reported", "")
+                    "last_reported_at": data.get("last_reported_at", data.get("last_reported", "")),
+                    # backward-compat
+                    "abuse_confidence_score": data.get("abuse_confidence_score", data.get("abuse_score", 0)),
                 }
         except Exception as e:
             print(f"[*] Error reading AbuseIPDB mock file {mock_filename}: {e}")
             
     # Default fallback
     return {
-        "abuse_confidence_score": 10,
+        "abuse_score": 10,
         "total_reports": 2,
-        "country_code": "US",
+        "country": "US",
         "isp": "Generic Mock ISP",
         "domain": "example.com",
-        "last_reported": None
+        "last_reported_at": None,
+        "abuse_confidence_score": 10,
     }
+
+
+# ---------------------------------------------------------------------------
+# Public alias so tests can import either name
+# ---------------------------------------------------------------------------
+query_ip = check_ip
+ABUSEIPDB_API_KEY = None  # resolved from env at call time

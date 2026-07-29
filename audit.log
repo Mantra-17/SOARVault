@@ -1,0 +1,6 @@
+{"timestamp": "2026-07-29T07:28:51.629313+00:00", "event_type": "alert_ingested", "actor": "orchestrator", "details": {"alert_hash": "ed7698c373cee43f0324ef36193fbfefbd86f5075f4819391cac7d6b6123e341"}}
+{"timestamp": "2026-07-29T07:28:51.629831+00:00", "event_type": "alert_normalized", "actor": "normalizer", "details": {"alert_id": "2066c1eb-f847-44b0-9473-0d1650d09a63", "type": "unknown"}}
+{"timestamp": "2026-07-29T07:28:51.631434+00:00", "event_type": "alert_ingested", "actor": "orchestrator", "details": {"alert_hash": "09a2988ada1a3ef92a8731085e7e3cd06cb6ce6caaad17fe50d0e3b7358ec484"}}
+{"timestamp": "2026-07-29T07:28:51.631552+00:00", "event_type": "alert_normalized", "actor": "normalizer", "details": {"alert_id": "2e3ea04d-333d-41dd-b078-59c7fd40ea36", "type": "unknown"}}
+{"timestamp": "2026-07-29T07:28:51.631795+00:00", "event_type": "alert_ingested", "actor": "orchestrator", "details": {"alert_hash": "eeede4c091434e2f8bad423e69ae75bca99464028d9960fdb928507f4617256f"}}
+{"timestamp": "2026-07-29T07:28:51.631872+00:00", "event_type": "alert_normalized", "actor": "normalizer", "details": {"alert_id": "83b4f280-6c3a-47fd-a179-0b2facc5fe3d", "type": "unknown"}}

@@ -38,3 +38,26 @@ def calculate_risk_score(severity: str, abuse_score: int or None, vt_votes: str 
     # 4. Cap score between 0 and 100
     final_score = max(0, min(100, score))
     return final_score
+
+
+def get_risk_label(score: int) -> str:
+    """
+    Convert a numeric risk score (0-100) to a human-readable severity label.
+    Used by dashboards and report generators.
+
+    Thresholds align with the PlaybookEngine trigger conditions:
+        >= 80 -> Critical  (triggers isolate-ec2-and-block-ip)
+        >= 60 -> High      (triggers block-ip-firewall)
+        >= 40 -> Medium
+        >= 20 -> Low
+         < 20 -> Info
+    """
+    if score >= 80:
+        return "critical"
+    if score >= 60:
+        return "high"
+    if score >= 40:
+        return "medium"
+    if score >= 20:
+        return "low"
+    return "info"

@@ -181,17 +181,106 @@ class NormalizedAlert(BaseModel):
     # IoCs extracted during normalisation
     iocs:        List[IoC]               = Field(default_factory=list)
 
-class EnrichmentData(BaseModel):
-    abuseipdb_confidence: Optional[int] = None
-    virustotal_malicious_votes: Optional[str] = None
-    geo: Optional[str] = None
-    asn: Optional[str] = None
-    first_seen_in_feeds: Optional[str] = None
+    # Enrichment blob (filled in by enrichment layer)
+    enrichment:  Optional[EnrichmentData] = None
+
+    # Arbitrary key-value store for SIEM-specific extra fields
+    raw_extra:   Dict[str, Any]          = Field(default_factory=dict)
+
+    # Audit trail populated by the playbook engine
+    timeline:    List[Dict[str, Any]]    = Field(default_factory=list)
+
+    # ----- validators -------------------------------------------------------
+
+    @field_validator("detected_at", mode="before")
+    @classmethod
+    def parse_detected_at(cls, v: Any) -> datetime:
+        """
+        Accept ISO-8601 strings with or without timezone info, Unix epoch
+        integers, or datetime objects. Always returns a UTC-aware datetime.
+        """
+        if isinstance(v, datetime):
+            return v if v.tzinfo else v.replace(tzinfo=timezone.utc)
+        if isinstance(v, (int, float)):
+            return datetime.fromtimestamp(v, tz=timezone.utc)
+        if isinstance(v, str):
+            s = v.strip().replace(" ", "T")
+            if s.endswith("Z"):
+                s = s[:-1] + "+00:00"
+            try:
+                dt = datetime.fromisoformat(s)
+                return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+            except ValueError:
+                raise ValueError(
+                    f"Cannot parse timestamp '{v}'. "
+                    "Expected ISO-8601, Unix epoch int, or datetime object."
+                )
+        raise TypeError(f"Unsupported timestamp type: {type(v)}")
+
+    @model_validator(mode="after")
+    def ensure_utc(self) -> "NormalizedAlert":
+        """Convert any non-UTC aware timestamps to UTC at model creation time."""
+        if self.detected_at.utcoffset() is not None:
+            self.detected_at = self.detected_at.astimezone(timezone.utc)
+        return self
+
+    # ----- helpers ----------------------------------------------------------
+
+    def add_timeline_event(self, actor: str, action: str, detail: str = "") -> None:
+        """Append a timestamped event to the alert timeline (audit trail)."""
+        self.timeline.append(
+            {
+                "ts":     datetime.now(timezone.utc).isoformat(),
+                "actor":  actor,
+                "action": action,
+                "detail": detail,
+            }
+        )
+
+    def primary_ip(self) -> Optional[str]:
+        """Return the most relevant attacking IP for enrichment lookups."""
+        if self.network and self.network.src_ip:
+            return self.network.src_ip
+        for ioc in self.iocs:
+            if ioc.type == "ip":
+                return ioc.value
+        return None
+
+    @property
+    def ioc_value(self) -> Optional[str]:
+        """Flat accessor used by enricher and case_manager."""
+        return self.primary_ip() or (self.iocs[0].value if self.iocs else None)
+
+    @property
+    def ioc_type(self) -> Optional[str]:
+        """Flat accessor used by enricher and case_manager."""
+        if self.primary_ip():
+            return "ip"
+        return self.iocs[0].type if self.iocs else None
+
+    def to_summary(self) -> Dict[str, Any]:
+        """Lightweight dict suitable for dashboard list views."""
+        return {
+            "alert_id":   str(self.alert_id),
+            "type":       self.type.value,
+            "severity":   self.severity.value,
+            "status":     self.status.value,
+            "title":      self.title,
+            "source_ip":  self.primary_ip(),
+            "risk_score": self.enrichment.risk_score if self.enrichment else None,
+            "detected_at": self.detected_at.isoformat(),
+        }
+
+
+# ---------------------------------------------------------------------------
+# Supporting models used by case_manager and dashboard
+# ---------------------------------------------------------------------------
 
 class TimelineStep(BaseModel):
     step: str
     detail: str
     offset_seconds: float
+
 
 class Case(BaseModel):
     id: str
@@ -204,6 +293,6 @@ class Case(BaseModel):
     playbook: Optional[str] = None
     status: str = "open"
     created_at: str
-    enrichment: EnrichmentData = Field(default_factory=EnrichmentData)
+    enrichment: Optional[EnrichmentData] = None
     timeline: List[TimelineStep] = Field(default_factory=list)
     actions: List[str] = Field(default_factory=list)
