@@ -24,13 +24,13 @@ from typing import Any, Optional, Union
 # Country risk map  (0 = no risk, 75 = elevated, 100 = highest risk)
 # ---------------------------------------------------------------------------
 _COUNTRY_RISK: dict[str, int] = {
-    # Highest risk — active state-sponsored threat actors
-    "KP": 100, "IR": 100,
-    # High risk
+    # Highest risk — 100.0 (contributes 20)
+    "KP": 100,
+    # High risk — 75.0 (contributes 15)
     "RU": 75,  "CN": 75,  "BY": 75,
-    # Elevated risk
-    "SY": 50,  "VE": 50,  "CU": 50,  "MM": 50,
-    # All others — baseline 0 (score driven purely by AbuseIPDB + VT)
+    # Elevated risk — 50.0 (contributes 10)
+    "IR": 50,  "SY": 50,  "VE": 50,  "CU": 50,  "MM": 50,
+    # All others — baseline 0
 }
 
 _DEFAULT_VT_TOTAL = 70  # default denominator when vt_total is missing
@@ -55,6 +55,7 @@ def calculate_risk_score(
             "vt_total": 10,           # optional, defaults to 70
             "geo_country_code": "RU", # or "country_code", "country"
             "country_risk": 75,       # optional override
+            "repeat_attacker": True,  # adds +20 bonus
         })
 
     **Signature 2 — legacy 3-positional args (backward compat):**
@@ -127,7 +128,13 @@ def _dict_score(data: Any) -> int:
         country_risk = _COUNTRY_RISK.get(cc, 0)
 
     score = (abuse * 0.5) + (vt_ratio * 100 * 0.3) + (float(country_risk) * 0.2)
+
+    # Repeat attacker bonus: +20
+    if _get("repeat_attacker"):
+        score += 20.0
+
     return max(0, min(100, round(score)))
+
 
 
 def _legacy_score(

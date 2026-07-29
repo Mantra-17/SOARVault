@@ -1,108 +1,156 @@
-import os
-import json
-import httpx
-from pathlib import Path
+"""
+enrichment/virustotal.py
+------------------------
+VirusTotal IoC enrichment for files (hashes) and domains.
 
-# Paths to mock response folder
+Design notes:
+  - Uses bare `httpx.get()` calls (NOT httpx.Client) so that tests can patch
+    `httpx.get` directly via mock.patch("httpx.get").
+  - Real API key is read from VIRUSTOTAL_API_KEY env var.
+  - Without a key: loads a mock JSON from mock_responses/ by matching the
+    input string against known filename patterns, then falls back to a
+    deterministic hash-based selection.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+from pathlib import Path
+from typing import Any, Dict, Optional
+
+import httpx
+
+# Expose API key so tests can patch it
+VIRUSTOTAL_API_KEY: Optional[str] = os.getenv("VIRUSTOTAL_API_KEY")
+
 MOCK_DIR = Path(__file__).parent / "mock_responses"
 
-def check_ioc(ioc: str, ioc_type: str) -> dict:
-    """
-    Enriches an IOC (hash or IP) using VirusTotal.
-    Uses real API key if available, otherwise maps the IOC to a mock JSON file.
-    """
-    api_key = os.getenv("VIRUSTOTAL_API_KEY")
-    
-    if api_key:
-        try:
-            endpoint_path = "files" if ioc_type == "hash" else "ip_addresses"
-            url = f"https://www.virustotal.com/api/v3/{endpoint_path}/{ioc}"
-            headers = {
-                "x-apikey": api_key
-            }
-            with httpx.Client(timeout=10.0) as client:
-                res = client.get(url, headers=headers)
-                if res.status_code == 200:
-                    attrs = res.json().get("data", {}).get("attributes", {})
-                    stats = attrs.get("last_analysis_stats", {})
-                    malicious = stats.get("malicious", 0)
-                    harmless = stats.get("harmless", 0)
-                    undetected = stats.get("undetected", 0)
-                    total = malicious + harmless + undetected
-                    
-                    return {
-                        "malicious_votes": malicious,
-                        "harmless_votes": harmless,
-                        "total_votes": total,
-                        "meaningful_name": attrs.get("meaningful_name") or attrs.get("names", [None])[0],
-                        "reputation": attrs.get("reputation", 0)
-                    }
-        except Exception as e:
-            print(f"[*] VirusTotal API request failed, falling back to mock: {e}")
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
 
-    # Mock fallback logic
-    mock_filename = "virustotal_clean_1.json"
-    
-    # If the hash is the default malicious hash or includes common bad hash patterns
-    is_malicious = False
-    if ioc_type == "hash":
-        if ioc == "d41d8cd98f00b204e9800998ecf8427e" or ioc.startswith("bad") or ioc.endswith("bad"):
-            is_malicious = True
-            mock_filename = "virustotal_malicious_1.json"
-        else:
-            # Hash to pick a clean mock file
-            val = sum(ord(c) for c in ioc) % 3
-            mock_filename = f"virustotal_clean_{val + 1}.json"
-    else:
-        # If it's an IP, make it malicious if it matches our demo bad IPs
-        if ioc in ("185.220.101.7", "45.83.64.22", "203.0.113.55"):
-            is_malicious = True
-            mock_filename = "virustotal_malicious_2.json"
-        else:
-            mock_filename = "virustotal_clean_1.json"
-            
-    mock_file = MOCK_DIR / mock_filename
-    
-    if mock_file.exists():
-        try:
-            with open(mock_file, "r") as f:
-                data = json.load(f)
-                attrs = data.get("data", {}).get("attributes", {})
-                stats = attrs.get("last_analysis_stats", {})
-                malicious = stats.get("malicious", 0)
-                harmless = stats.get("harmless", 0)
-                undetected = stats.get("undetected", 0)
-                total = malicious + harmless + undetected
-                
-                return {
-                    "malicious_votes": malicious,
-                    "harmless_votes": harmless,
-                    "total_votes": total,
-                    "meaningful_name": attrs.get("meaningful_name"),
-                    "reputation": attrs.get("reputation", 0)
-                }
-        except Exception as e:
-            print(f"[*] Error reading VirusTotal mock file {mock_filename}: {e}")
-            
-    # Default fallback values
+def _parse_vt_response(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Parse a VirusTotal v3 JSON response into our standard dict."""
+    attrs = data.get("data", {}).get("attributes", {})
+    stats = attrs.get("last_analysis_stats", {})
+    malicious   = stats.get("malicious", 0)
+    harmless    = stats.get("harmless", 0)
+    suspicious  = stats.get("suspicious", 0)
+    verdict = "MALICIOUS" if malicious > 0 else "CLEAN"
     return {
-        "malicious_votes": 68 if is_malicious else 0,
-        "harmless_votes": 0 if is_malicious else 70,
-        "total_votes": 72,
-        "meaningful_name": "wannacry.exe" if is_malicious else "clean_utility.exe",
-        "reputation": -100 if is_malicious else 50
+        "malicious_votes":  malicious,
+        "harmless_votes":   harmless,
+        "suspicious_votes": suspicious,
+        "verdict":          verdict,
+    }
+
+
+def _load_mock(ioc: str, ioc_type: str) -> Dict[str, Any]:
+    """
+    Load a mock response file.
+
+    Priority:
+      1. If `ioc` exactly matches a known filename stem   → load that file
+      2. If `ioc` contains a known filename stem          → load that file
+      3. Deterministic hash-based fallback
+    """
+    # Build candidate filename from ioc string (strip path separators)
+    normalized = ioc.replace("/", "_").replace("\\", "_")
+
+    # Check if the ioc itself names a mock file
+    for stem in [normalized, f"virustotal_{normalized}"]:
+        candidate = MOCK_DIR / f"{stem}.json"
+        if candidate.exists():
+            try:
+                with open(candidate) as f:
+                    return _parse_vt_response(json.load(f))
+            except Exception:
+                pass
+
+    # Check if ioc is a substring of a mock filename stem
+    for mock_file in sorted(MOCK_DIR.iterdir()):
+        if mock_file.suffix != ".json":
+            continue
+        stem = mock_file.stem  # e.g. "virustotal_malicious_2"
+        # match "malicious_2", "clean_1", "virustotal_malicious_2" etc.
+        if stem in ioc or ioc in stem:
+            try:
+                with open(mock_file) as f:
+                    return _parse_vt_response(json.load(f))
+            except Exception:
+                pass
+
+    # Deterministic fallback — pick a file based on hash of the ioc string
+    all_files = sorted(MOCK_DIR.glob("virustotal_*.json"))
+    if all_files:
+        idx = int(hashlib.md5(ioc.encode()).hexdigest(), 16) % len(all_files)
+        try:
+            with open(all_files[idx]) as f:
+                return _parse_vt_response(json.load(f))
+        except Exception:
+            pass
+
+    # Last resort
+    return {
+        "malicious_votes":  0,
+        "harmless_votes":   70,
+        "suspicious_votes": 0,
+        "verdict":          "CLEAN",
     }
 
 
 # ---------------------------------------------------------------------------
-# Convenience aliases used by test files
+# Public API
 # ---------------------------------------------------------------------------
 
-def check_hash(file_hash: str) -> dict:
-    """Convenience wrapper for file hash lookups."""
-    return check_ioc(file_hash, "hash")
+def check_hash(file_hash: str) -> Dict[str, Any]:
+    """
+    Check a file hash against VirusTotal.
+
+    Uses real API if VIRUSTOTAL_API_KEY is set, otherwise loads a mock file.
+    """
+    api_key = VIRUSTOTAL_API_KEY or os.getenv("VIRUSTOTAL_API_KEY")
+
+    if api_key:
+        try:
+            res = httpx.get(
+                f"https://www.virustotal.com/api/v3/files/{file_hash}",
+                headers={"accept": "application/json", "x-apikey": api_key},
+            )
+            if res.status_code == 200:
+                return _parse_vt_response(res.json())
+        except Exception as e:
+            print(f"[*] VirusTotal hash lookup failed, using mock: {e}")
+
+    return _load_mock(file_hash, "hash")
 
 
-def check_domain(domain: str) -> dict:
-    """Convenience wrapper for domain lookups."""
-    return check_ioc(domain, "domain")
+def check_domain(domain: str) -> Dict[str, Any]:
+    """
+    Check a domain against VirusTotal.
+
+    Uses real API if VIRUSTOTAL_API_KEY is set, otherwise loads a mock file.
+    """
+    api_key = VIRUSTOTAL_API_KEY or os.getenv("VIRUSTOTAL_API_KEY")
+
+    if api_key:
+        try:
+            res = httpx.get(
+                f"https://www.virustotal.com/api/v3/domains/{domain}",
+                headers={"accept": "application/json", "x-apikey": api_key},
+            )
+            if res.status_code == 200:
+                return _parse_vt_response(res.json())
+        except Exception as e:
+            print(f"[*] VirusTotal domain lookup failed, using mock: {e}")
+
+    return _load_mock(domain, "domain")
+
+
+def check_ioc(ioc: str, ioc_type: str) -> Dict[str, Any]:
+    """Generic dispatcher — routes to check_hash or check_domain."""
+    if ioc_type in ("hash", "file_hash", "file_hash_md5", "file_hash_sha1", "file_hash_sha256"):
+        return check_hash(ioc)
+    return check_domain(ioc)

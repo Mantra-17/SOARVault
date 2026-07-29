@@ -73,6 +73,11 @@ class NetworkContext(BaseModel):
     geo_city:    Optional[str] = Field(None, description="Source city")
     asn:         Optional[str] = Field(None, description="Autonomous System Number")
 
+    # Geo enrichment fields (populated by enricher)
+    geo_country: Optional[str] = Field(None, description="Full country name from GeoIP")
+    geo_city:    Optional[str] = Field(None, description="City from GeoIP")
+    asn:         Optional[str] = Field(None, description="Autonomous System Number and name")
+
     @field_validator("src_ip", "dst_ip", mode="before")
     @classmethod
     def validate_ip(cls, v: Any) -> Optional[str]:
@@ -117,16 +122,18 @@ class EnrichmentData(BaseModel):
     Container for external threat-intel data added by the enrichment layer.
     Populated by enrichment/enricher.py *after* ingestion normalisation.
     """
-    abuse_score:      Optional[int]   = None   # 0-100 from AbuseIPDB
-    vt_malicious:     Optional[int]   = None   # malicious engine count from VT
-    vt_total:         Optional[int]   = None   # total VT engine count
-    is_tor_exit:      Optional[bool]  = None
-    is_vpn:           Optional[bool]  = None
-    threat_feeds:     List[str]       = Field(default_factory=list)
-    geo_country_code: Optional[str]   = None
-    geo_asn_org:      Optional[str]   = None
+    abuse_score:       Optional[int]   = None   # 0-100 from AbuseIPDB
+    vt_malicious:      Optional[int]   = None   # malicious engine count from VT
+    vt_total:          Optional[int]   = None   # total VT engine count
+    is_tor_exit:       Optional[bool]  = None
+    is_vpn:            Optional[bool]  = None
+    threat_feeds:      List[str]       = Field(default_factory=list)
+    geo_country_code:  Optional[str]   = None
+    geo_country:       Optional[str]   = None   # full country name
+    geo_asn_org:       Optional[str]   = None
+    repeat_attacker:   bool            = False  # True if IP seen >= 3 times
     # Composite risk score computed by risk_scorer.py  (0.0 – 100.0)
-    risk_score:       Optional[float] = None
+    risk_score:        Optional[float] = None
 
 
 # ---------------------------------------------------------------------------

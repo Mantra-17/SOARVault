@@ -1,75 +1,96 @@
+"""
+enrichment/geoip.py
+-------------------
+IP geolocation and ASN lookup.
+
+Uses ip-api.com as the primary source (no API key required).
+Tests patch `httpx.get` directly, so we use bare `httpx.get()` calls
+(NOT `httpx.Client` context manager) so mock.patch("httpx.get") works.
+"""
+
+from __future__ import annotations
+
 import httpx
+from typing import Optional
+
 
 def get_geoip(ip: str) -> dict:
     """
     Looks up geolocation and ASN information for an IP address.
-    Tries a free ip-api.com lookup, falling back to mock definitions for demo IPs.
+
+    Returns a normalised dict with keys:
+        country, country_code, region, city, latitude, longitude,
+        isp, org, asn, timezone, error (if lookup failed)
     """
-    # Demo mappings
-    demo_mappings = {
+    # ---- Static demo mappings ------------------------------------------ #
+    _DEMO: dict[str, dict] = {
         "185.220.101.7": {
+            "country": "Romania",
             "country_code": "RO",
-            "country_name": "Romania",
             "city": "Bucharest",
             "asn": "AS9009 (M247 Europe SRL)",
-            "isp": "M247 Europe SRL"
+            "isp": "M247 Europe SRL",
         },
         "45.83.64.22": {
+            "country": "Germany",
             "country_code": "DE",
-            "country_name": "Germany",
             "city": "Frankfurt",
             "asn": "AS24940 (Hetzner Online)",
-            "isp": "Hetzner Online"
+            "isp": "Hetzner Online",
         },
         "203.0.113.55": {
+            "country": "Singapore",
             "country_code": "SG",
-            "country_name": "Singapore",
             "city": "Singapore",
             "asn": "AS132203 (Tencent Cloud)",
-            "isp": "Tencent Cloud"
-        }
+            "isp": "Tencent Cloud",
+        },
     }
-    
-    if ip in demo_mappings:
-        return demo_mappings[ip]
+    if ip in _DEMO:
+        return _DEMO[ip]
 
-    # Private IP check
-    parts = ip.split(".")
-    if len(parts) == 4:
-        if parts[0] == "10" or (parts[0] == "192" and parts[1] == "168") or (parts[0] == "172" and 16 <= int(parts[1]) <= 31):
-            return {
-                "country_code": "US",
-                "country_name": "United States",
-                "city": "Local Network",
-                "asn": "Local Private ASN",
-                "isp": "Private Network"
-            }
-
-    # Attempt public API lookup
+    # ---- Attempt public API lookup (bare httpx.get so mock.patch works) -- #
     try:
-        url = f"http://ip-api.com/json/{ip}?fields=status,message,country,countryCode,city,isp,as"
-        with httpx.Client(timeout=2.0) as client:
-            res = client.get(url)
-            if res.status_code == 200:
-                data = res.json()
-                if data.get("status") == "success":
-                    return {
-                        "country_code": data.get("countryCode", "US"),
-                        "country_name": data.get("country", "United States"),
-                        "city": data.get("city", "Unknown City"),
-                        "asn": data.get("as", "Unknown ASN"),
-                        "isp": data.get("isp", "Unknown ISP")
-                    }
+        url = f"http://ip-api.com/json/{ip}"
+        res = httpx.get(url, timeout=10.0)
+        if res.status_code == 200:
+            data = res.json()
+            if data.get("status") == "success":
+                return {
+                    "country":      data.get("country"),
+                    "country_code": data.get("countryCode"),
+                    "region":       data.get("regionName"),
+                    "city":         data.get("city"),
+                    "latitude":     data.get("lat"),
+                    "longitude":    data.get("lon"),
+                    "isp":          data.get("isp"),
+                    "org":          data.get("org"),
+                    "asn":          data.get("as"),
+                    "timezone":     data.get("timezone"),
+                }
+            else:
+                # API returned fail status (e.g. private range)
+                return {
+                    "country":      None,
+                    "country_code": None,
+                    "city":         None,
+                    "error":        data.get("message", "lookup failed"),
+                }
     except Exception as e:
-        print(f"[*] GeoIP API request failed, using generic fallback: {e}")
+        return {
+            "country":      None,
+            "country_code": None,
+            "city":         None,
+            "error":        str(e),
+        }
 
-    # Generic fallback
+    # ---- Generic fallback ----------------------------------------------- #
     return {
+        "country":      "United States",
         "country_code": "US",
-        "country_name": "United States",
-        "city": "Dallas",
-        "asn": "AS15169 (Google LLC)",
-        "isp": "Google LLC"
+        "city":         "Dallas",
+        "asn":          "AS15169 (Google LLC)",
+        "isp":          "Google LLC",
     }
 
 
