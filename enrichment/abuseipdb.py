@@ -176,7 +176,53 @@ def check_ip(ip: str) -> Dict[str, Any]:
     return res_data
 
 
+async def check_ip_async(ip: str) -> Dict[str, Any]:
+    """
+    Enrich an IP address using AbuseIPDB asynchronously.
+
+    Checks Redis cache first. On miss, uses real API if ABUSEIPDB_API_KEY is set,
+    otherwise loads deterministic mock data, then saves to cache.
+    """
+    # 1. Check cache first
+    cached = get_cached_ioc(ip)
+    if cached:
+        return cached
+
+    api_key = ABUSEIPDB_API_KEY or os.getenv("ABUSEIPDB_API_KEY")
+    res_data = None
+
+    if api_key:
+        try:
+            async with httpx.AsyncClient() as client:
+                res = await client.get(
+                    "https://api.abuseipdb.com/api/v2/check",
+                    headers={"Accept": "application/json", "Key": api_key},
+                    params={"ipAddress": ip, "verbose": True},
+                    timeout=5.0
+                )
+                if res.status_code == 200:
+                    data = res.json().get("data", {})
+                    res_data = {
+                        "abuse_score":      data.get("abuseConfidenceScore", 0),
+                        "total_reports":    data.get("totalReports", 0),
+                        "country":          data.get("countryCode", "US"),
+                        "isp":              data.get("isp", "Unknown ISP"),
+                        "last_reported_at": data.get("lastReportedAt"),
+                    }
+        except Exception as e:
+            print(f"[*] Async AbuseIPDB API request failed, falling back to mock: {e}")
+
+    if not res_data:
+        res_data = _load_mock_for_ip(ip)
+
+    # 2. Save result to cache
+    set_cached_ioc(ip, res_data)
+    return res_data
+
+
 # ---------------------------------------------------------------------------
 # Public aliases
 # ---------------------------------------------------------------------------
 query_ip = check_ip
+query_ip_async = check_ip_async
+

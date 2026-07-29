@@ -16,9 +16,25 @@ def get_cached_ioc(ioc: str) -> Optional[Dict[str, Any]]:
             if isinstance(parsed, dict) and "_expires_at" in parsed:
                 if time.time() > parsed["_expires_at"]:
                     db.delete(f"cache:ioc:{ioc}")
+                    try:
+                        db.incr("stats:cache_misses")
+                    except Exception:
+                        pass
                     return None
+                try:
+                    db.incr("stats:cache_hits")
+                except Exception:
+                    pass
                 return parsed.get("data")
+            try:
+                db.incr("stats:cache_hits")
+            except Exception:
+                pass
             return parsed
+        try:
+            db.incr("stats:cache_misses")
+        except Exception:
+            pass
     except Exception as e:
         print(f"[*] Cache read error for {ioc}: {e}")
     return None
@@ -65,5 +81,26 @@ def get_cache_size() -> int:
         return 0
 
 
+def get_cache_stats() -> Dict[str, Any]:
+    """
+    Retrieve hit, miss, and hit ratio cache statistics from Redis.
+    """
+    db = get_redis_client()
+    try:
+        hits = int(db.get("stats:cache_hits") or 0)
+        misses = int(db.get("stats:cache_misses") or 0)
+        total = hits + misses
+        ratio = (hits / total) if total > 0 else 0.0
+        return {
+            "hits": hits,
+            "misses": misses,
+            "total_requests": total,
+            "hit_ratio": ratio
+        }
+    except Exception:
+        return {"hits": 0, "misses": 0, "total_requests": 0, "hit_ratio": 0.0}
+
+
 # Alias: test_enrichment.py imports cache_response
 cache_response = set_cached_ioc
+

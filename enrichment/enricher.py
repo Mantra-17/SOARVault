@@ -23,6 +23,7 @@ from __future__ import annotations
 import copy
 import logging
 import re
+import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Union
 
@@ -43,6 +44,8 @@ from enrichment.risk_scorer import calculate_risk_score
 from enrichment.threat_actor import track_and_check_ip
 from enrichment.cache import get_cached_ioc, set_cached_ioc
 from ingestion.normalizer import IoCExtractor
+from enrichment.false_positive_detector import analyze_false_positive
+from enrichment.mitre_mapper import MitreAttackMapper
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +94,17 @@ def _enrich_pydantic(alert: NormalizedAlert) -> NormalizedAlert:
     max_abuse_score: Optional[int] = None
     for ip in ip_list:
         try:
+            start_t = time.perf_counter()
+            cached = get_cached_ioc(ip)
+            if cached:
+                logger.info("[CACHE HIT] AbuseIPDB for IP: %s", ip)
+            else:
+                logger.info("[CACHE MISS] AbuseIPDB for IP: %s", ip)
+
             res = query_ip(ip)
+            elapsed = (time.perf_counter() - start_t) * 1000.0
+            logger.info("AbuseIPDB lookup for %s completed in %.2f ms", ip, elapsed)
+
             if res and isinstance(res, dict):
                 score = res.get("abuse_score")
                 if score is None:
@@ -109,7 +122,11 @@ def _enrich_pydantic(alert: NormalizedAlert) -> NormalizedAlert:
 
     for ip in ip_list:
         try:
+            start_t = time.perf_counter()
             geo = get_geolocation(ip)
+            elapsed = (time.perf_counter() - start_t) * 1000.0
+            logger.info("GeoIP lookup for %s completed in %.2f ms", ip, elapsed)
+
             if geo and not geo.get("error") and (geo.get("country") or geo.get("country_code")):
                 geo_country      = geo.get("country") or geo.get("country_name")
                 geo_country_code = geo.get("country_code") or geo.get("countryCode")
@@ -141,8 +158,11 @@ def _enrich_pydantic(alert: NormalizedAlert) -> NormalizedAlert:
 
     for ioc in alert.iocs:
         try:
+            start_t = time.perf_counter()
             if ioc.type == "domain":
                 res = check_domain(ioc.value)
+                elapsed = (time.perf_counter() - start_t) * 1000.0
+                logger.info("VirusTotal domain lookup for %s completed in %.2f ms", ioc.value, elapsed)
                 if res and isinstance(res, dict):
                     m = res.get("malicious_votes", 0)
                     h = res.get("harmless_votes", 0)
@@ -151,6 +171,8 @@ def _enrich_pydantic(alert: NormalizedAlert) -> NormalizedAlert:
                     vt_total += (m + h + s)
             elif ioc.type in ("file_hash", "file_hash_md5", "file_hash_sha1", "file_hash_sha256", "hash"):
                 res = check_hash(ioc.value)
+                elapsed = (time.perf_counter() - start_t) * 1000.0
+                logger.info("VirusTotal hash lookup for %s completed in %.2f ms", ioc.value, elapsed)
                 if res and isinstance(res, dict):
                     m = res.get("malicious_votes", 0)
                     h = res.get("harmless_votes", 0)
@@ -170,6 +192,24 @@ def _enrich_pydantic(alert: NormalizedAlert) -> NormalizedAlert:
     }
     risk_score = float(calculate_risk_score(enrichment_data))
 
+    # 6b. False Positive Heuristics
+    is_fp = False
+    fp_explanation = ""
+    if primary_ip:
+        is_fp, fp_explanation = analyze_false_positive(
+            ip=primary_ip,
+            abuse_score=max_abuse_score if max_abuse_score is not None else 0,
+            vt_malicious=vt_malicious,
+            vt_total=vt_total if vt_total > 0 else 70,
+            isp=geo_asn_org or "Unknown ISP"
+        )
+
+    # 6c. MITRE ATT&CK Mapping
+    mapper = MitreAttackMapper()
+    alert_type_val = alert.type.value if hasattr(alert.type, "value") else str(alert.type)
+    mitre_map = mapper.get_mapping(alert_type=alert_type_val, title=alert.title)
+    mitre_mappings = [mitre_map] if mitre_map else []
+
     # 7. Populate Pydantic Model
     alert.enrichment = EnrichmentData(
         abuse_score      = max_abuse_score,
@@ -181,6 +221,9 @@ def _enrich_pydantic(alert: NormalizedAlert) -> NormalizedAlert:
         repeat_attacker  = is_repeat_attacker,
         threat_feeds     = threat_feeds,
         risk_score       = risk_score,
+        false_positive   = is_fp,
+        false_positive_explanation = fp_explanation,
+        mitre_mappings   = mitre_mappings,
     )
     alert.status = AlertStatus.TRIAGED
 
@@ -190,7 +233,7 @@ def _enrich_pydantic(alert: NormalizedAlert) -> NormalizedAlert:
         detail = (
             f"abuse={max_abuse_score}, vt={vt_malicious}/{vt_total}, "
             f"country={geo_country_code}, risk={risk_score}, "
-            f"repeat_attacker={is_repeat_attacker}"
+            f"repeat_attacker={is_repeat_attacker}, false_positive={is_fp}"
         ),
     )
     return alert
@@ -238,7 +281,17 @@ def _enrich_dict(alert: Dict[str, Any]) -> Dict[str, Any]:
     max_abuse_score: Optional[int] = None
     for ip in ip_list:
         try:
+            start_t = time.perf_counter()
+            cached = get_cached_ioc(ip)
+            if cached:
+                logger.info("[CACHE HIT] AbuseIPDB for IP: %s", ip)
+            else:
+                logger.info("[CACHE MISS] AbuseIPDB for IP: %s", ip)
+
             res = query_ip(ip)
+            elapsed = (time.perf_counter() - start_t) * 1000.0
+            logger.info("AbuseIPDB lookup for %s completed in %.2f ms", ip, elapsed)
+
             if res and isinstance(res, dict):
                 score = res.get("abuse_score")
                 if score is None:
@@ -256,7 +309,11 @@ def _enrich_dict(alert: Dict[str, Any]) -> Dict[str, Any]:
 
     for ip in ip_list:
         try:
+            start_t = time.perf_counter()
             geo = get_geolocation(ip)
+            elapsed = (time.perf_counter() - start_t) * 1000.0
+            logger.info("GeoIP lookup for %s completed in %.2f ms", ip, elapsed)
+
             if geo and not geo.get("error") and (geo.get("country") or geo.get("country_code")):
                 geo_country      = geo.get("country") or geo.get("country_name")
                 geo_country_code = geo.get("country_code") or geo.get("countryCode")
@@ -309,7 +366,10 @@ def _enrich_dict(alert: Dict[str, Any]) -> Dict[str, Any]:
 
     for domain in domains_to_check:
         try:
+            start_t = time.perf_counter()
             res = check_domain(domain)
+            elapsed = (time.perf_counter() - start_t) * 1000.0
+            logger.info("VirusTotal domain lookup for %s completed in %.2f ms", domain, elapsed)
             if res and isinstance(res, dict):
                 m = res.get("malicious_votes", 0)
                 h = res.get("harmless_votes", 0)
@@ -321,7 +381,10 @@ def _enrich_dict(alert: Dict[str, Any]) -> Dict[str, Any]:
 
     for file_hash in hashes_to_check:
         try:
+            start_t = time.perf_counter()
             res = check_hash(file_hash)
+            elapsed = (time.perf_counter() - start_t) * 1000.0
+            logger.info("VirusTotal hash lookup for %s completed in %.2f ms", file_hash, elapsed)
             if res and isinstance(res, dict):
                 m = res.get("malicious_votes", 0)
                 h = res.get("harmless_votes", 0)
@@ -341,6 +404,26 @@ def _enrich_dict(alert: Dict[str, Any]) -> Dict[str, Any]:
     }
     risk_score = float(calculate_risk_score(enrichment_data_dict))
 
+    # 6b. False Positive Heuristics
+    is_fp = False
+    fp_explanation = ""
+    if primary_ip:
+        is_fp, fp_explanation = analyze_false_positive(
+            ip=primary_ip,
+            abuse_score=max_abuse_score if max_abuse_score is not None else 0,
+            vt_malicious=vt_malicious,
+            vt_total=vt_total if vt_total > 0 else 70,
+            isp=geo_asn_org or "Unknown ISP"
+        )
+
+    # 6c. MITRE ATT&CK Mapping
+    mapper = MitreAttackMapper()
+    alert_type_val = alert.get("type") or "unknown"
+    if hasattr(alert_type_val, "value"):
+        alert_type_val = alert_type_val.value
+    mitre_map = mapper.get_mapping(alert_type=str(alert_type_val), title=alert.get("title", ""))
+    mitre_mappings = [mitre_map] if mitre_map else []
+
     # 7. Write enrichment subdict
     alert["enrichment"] = {
         "abuse_score":      max_abuse_score,
@@ -352,6 +435,9 @@ def _enrich_dict(alert: Dict[str, Any]) -> Dict[str, Any]:
         "repeat_attacker":  is_repeat_attacker,
         "threat_feeds":     threat_feeds,
         "risk_score":       risk_score,
+        "false_positive":   is_fp,
+        "false_positive_explanation": fp_explanation,
+        "mitre_mappings":   mitre_mappings,
     }
     alert["status"] = "triaged"
 
@@ -365,7 +451,7 @@ def _enrich_dict(alert: Dict[str, Any]) -> Dict[str, Any]:
         "detail": (
             f"abuse={max_abuse_score}, vt={vt_malicious}/{vt_total}, "
             f"country={geo_country_code}, risk={risk_score}, "
-            f"repeat_attacker={is_repeat_attacker}"
+            f"repeat_attacker={is_repeat_attacker}, false_positive={is_fp}"
         ),
     })
 

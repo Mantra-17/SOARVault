@@ -154,3 +154,55 @@ def check_ioc(ioc: str, ioc_type: str) -> Dict[str, Any]:
     if ioc_type in ("hash", "file_hash", "file_hash_md5", "file_hash_sha1", "file_hash_sha256"):
         return check_hash(ioc)
     return check_domain(ioc)
+
+
+async def check_hash_async(file_hash: str) -> Dict[str, Any]:
+    """
+    Check a file hash against VirusTotal asynchronously.
+    """
+    api_key = VIRUSTOTAL_API_KEY or os.getenv("VIRUSTOTAL_API_KEY")
+
+    if api_key:
+        try:
+            async with httpx.AsyncClient() as client:
+                res = await client.get(
+                    f"https://www.virustotal.com/api/v3/files/{file_hash}",
+                    headers={"accept": "application/json", "x-apikey": api_key},
+                    timeout=5.0
+                )
+                if res.status_code == 200:
+                    return _parse_vt_response(res.json())
+        except Exception as e:
+            print(f"[*] Async VirusTotal hash lookup failed, using mock: {e}")
+
+    return _load_mock(file_hash, "hash")
+
+
+async def check_domain_async(domain: str) -> Dict[str, Any]:
+    """
+    Check a domain against VirusTotal asynchronously.
+    """
+    api_key = VIRUSTOTAL_API_KEY or os.getenv("VIRUSTOTAL_API_KEY")
+
+    if api_key:
+        try:
+            async with httpx.AsyncClient() as client:
+                res = await client.get(
+                    f"https://www.virustotal.com/api/v3/domains/{domain}",
+                    headers={"accept": "application/json", "x-apikey": api_key},
+                    timeout=5.0
+                )
+                if res.status_code == 200:
+                    return _parse_vt_response(res.json())
+        except Exception as e:
+            print(f"[*] Async VirusTotal domain lookup failed, using mock: {e}")
+
+    return _load_mock(domain, "domain")
+
+
+async def check_ioc_async(ioc: str, ioc_type: str) -> Dict[str, Any]:
+    """Generic async dispatcher — routes to check_hash_async or check_domain_async."""
+    if ioc_type in ("hash", "file_hash", "file_hash_md5", "file_hash_sha1", "file_hash_sha256"):
+        return await check_hash_async(ioc)
+    return await check_domain_async(ioc)
+

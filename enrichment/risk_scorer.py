@@ -19,19 +19,60 @@ of high-risk nation-state cyber-threat origins.
 from __future__ import annotations
 
 from typing import Any, Optional, Union
+import os
 
 # ---------------------------------------------------------------------------
 # Country risk map  (0 = no risk, 75 = elevated, 100 = highest risk)
 # ---------------------------------------------------------------------------
-_COUNTRY_RISK: dict[str, int] = {
-    # Highest risk — 100.0 (contributes 20)
-    "KP": 100,
-    # High risk — 75.0 (contributes 15)
-    "RU": 75,  "CN": 75,  "BY": 75,
-    # Elevated risk — 50.0 (contributes 10)
-    "IR": 50,  "SY": 50,  "VE": 50,  "CU": 50,  "MM": 50,
-    # All others — baseline 0
-}
+class ConfigurableCountryRiskMap(dict):
+    """Dynamic map checking environment variables for country risks.
+    
+    Reads from:
+      - SOARVAULT_HIGHEST_RISK_COUNTRIES (default: KP)
+      - SOARVAULT_HIGH_RISK_COUNTRIES (default: RU, CN, BY)
+      - SOARVAULT_MEDIUM_RISK_COUNTRIES (default: IR, SY, VE, CU, MM)
+    """
+    def get(self, key: Any, default: Any = None) -> Any:
+        if not isinstance(key, str):
+            return default
+        cc = key.strip().upper()
+        
+        highest_env = os.getenv("SOARVAULT_HIGHEST_RISK_COUNTRIES", "KP")
+        highest = {c.strip().upper() for c in highest_env.split(",") if c.strip()}
+        if cc in highest:
+            return 100
+            
+        high_env = os.getenv("SOARVAULT_HIGH_RISK_COUNTRIES", "RU,CN,BY")
+        high = {c.strip().upper() for c in high_env.split(",") if c.strip()}
+        if cc in high:
+            return 75
+            
+        medium_env = os.getenv("SOARVAULT_MEDIUM_RISK_COUNTRIES", "IR,SY,VE,CU,MM")
+        medium = {c.strip().upper() for c in medium_env.split(",") if c.strip()}
+        if cc in medium:
+            return 50
+            
+        return default
+
+    def __getitem__(self, key: Any) -> Any:
+        val = self.get(key, None)
+        if val is None:
+            raise KeyError(key)
+        return val
+
+    def __contains__(self, key: object) -> bool:
+        if not isinstance(key, str):
+            return False
+        cc = key.strip().upper()
+        highest = os.getenv("SOARVAULT_HIGHEST_RISK_COUNTRIES", "KP")
+        high = os.getenv("SOARVAULT_HIGH_RISK_COUNTRIES", "RU,CN,BY")
+        medium = os.getenv("SOARVAULT_MEDIUM_RISK_COUNTRIES", "IR,SY,VE,CU,MM")
+        all_countries = highest + "," + high + "," + medium
+        country_set = {c.strip().upper() for c in all_countries.split(",") if c.strip()}
+        return cc in country_set
+
+_COUNTRY_RISK = ConfigurableCountryRiskMap()
+
 
 _DEFAULT_VT_TOTAL = 70  # default denominator when vt_total is missing
 

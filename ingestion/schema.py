@@ -134,6 +134,10 @@ class EnrichmentData(BaseModel):
     repeat_attacker:   bool            = False  # True if IP seen >= 3 times
     # Composite risk score computed by risk_scorer.py  (0.0 – 100.0)
     risk_score:        Optional[float] = None
+    false_positive:             bool = False
+    false_positive_explanation: Optional[str] = None
+    mitre_mappings:             List[Dict[str, Any]] = Field(default_factory=list)
+
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,12 @@
+{
+  "ip": "185.220.101.7",
+  "country": "Romania",
+  "country_code": "RO",
+  "isp": "M247 Europe SRL",
+  "abuse_score": 90,
+  "virustotal_verdict": "CLEAN",
+  "final_risk_score": 45,
+  "risk_level": "MEDIUM",
+  "recommended_action": "Monitor Closely: Add IP to active watchlists, correlate login logs, and inspect endpoint activity.",
+  "timestamp": "2026-07-29T15:07:01.022180+00:00"
+}
