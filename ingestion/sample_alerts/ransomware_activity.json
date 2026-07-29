@@ -1,0 +1,20 @@
+{
+  "_comment": "Simulated Ransomware alert with high AbuseIPDB score and malicious domain",
+  "title": "Ransomware Activity - File Encryption Event",
+  "description": "Host finance-server-01 detected encrypting multiple files in shared directories. Communicating with C2 domain: malicious-ransom-c2.com",
+  "type": "malware",
+  "severity": "critical",
+  "rule_id": "RANSOM-SHIELD-01",
+  "timestamp": "2026-07-25T08:10:00Z",
+  "source": "SentinelOne EDR",
+  "network": {
+    "src_ip": "185.234.218.100",
+    "dst_ip": "10.0.2.12",
+    "src_port": 443,
+    "dst_port": 50119,
+    "protocol": "tcp"
+  },
+  "host": {
+    "hostname": "finance-server-01"
+  }
+}

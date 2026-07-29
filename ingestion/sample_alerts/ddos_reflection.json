@@ -1,0 +1,20 @@
+{
+  "_comment": "Simulated DDoS reflection alert",
+  "title": "NTP DDoS Reflection Outbound Flood",
+  "description": "High volume NTP UDP traffic detected outbound from local server to reflection target IP: 185.234.218.30",
+  "type": "ddos",
+  "severity": "high",
+  "rule_id": "DDOS-NTP-FLOOD",
+  "timestamp": "2026-07-25T08:15:00Z",
+  "source": "Corero DDoS Defense",
+  "network": {
+    "src_ip": "10.0.1.10",
+    "dst_ip": "185.234.218.30",
+    "src_port": 123,
+    "dst_port": 123,
+    "protocol": "udp"
+  },
+  "host": {
+    "hostname": "ntp-local-server"
+  }
+}
