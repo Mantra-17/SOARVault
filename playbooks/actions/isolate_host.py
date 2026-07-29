@@ -1,24 +1,24 @@
 import time
-import random
 from datetime import datetime
 from . import ActionResult
+from playbooks.mock_edr import MockEDR
 
-def isolate_host(host_id: str) -> ActionResult:
+def isolate_host_edr(host_id: str) -> ActionResult:
     """
-    Mock EDR/Network action to isolate a host with a realistic 50-200ms delay.
+    Isolates a host using EDR (CrowdStrike mock API).
     """
     start_time = time.time()
     
-    # Simulate network/EDR delay (50-200ms)
-    time.sleep(random.uniform(0.05, 0.20))
+    # Use the mock EDR client
+    edr = MockEDR()
+    result = edr.isolate(host_id)
     
-    status = "success" if random.random() > 0.05 else "failed"
     duration_ms = int((time.time() - start_time) * 1000)
     
     return ActionResult(
-        action="isolate_host",
+        action="isolate_host_edr",
         target=host_id,
-        status=status,
+        status=result.get("status", "success"),
         timestamp=datetime.utcnow().isoformat(),
         duration_ms=duration_ms,
         reversible=True

@@ -11,13 +11,16 @@ import httpx
 from enrichment.abuseipdb import query_ip
 from enrichment.geoip import get_geolocation
 from enrichment.cache import clear_cache
+from enrichment.threat_actor import clear_threat_actor_history
 
 
 @pytest.fixture(autouse=True)
 def reset_cache():
     clear_cache()
+    clear_threat_actor_history()
     yield
     clear_cache()
+    clear_threat_actor_history()
 
 
 # --- AbuseIPDB Tests ---
@@ -342,8 +345,8 @@ def test_calculate_risk_score_dictionary():
         "geo_country_code": "RU"
     }
     score = calculate_risk_score(data_med)
-    # 50 * 0.5 + (30/60 * 100) * 0.3 + 100 * 0.2 = 25 + 15 + 20 = 60
-    assert score == 60
+    # 50 * 0.5 + (30/60 * 100) * 0.3 + 75 * 0.2 = 25 + 15 + 15 = 55
+    assert score == 55
     assert get_risk_label(score) == "MEDIUM"
 
     # 3. High Risk Case
@@ -366,8 +369,8 @@ def test_calculate_risk_score_dictionary():
         "geo_country_code": "CN"
     }
     score = calculate_risk_score(data_crit)
-    # 90 * 0.5 + (60/70 * 100) * 0.3 + 100 * 0.2 = 45 + 25.714 + 20 = 90.714 -> rounds to 91
-    assert score == 91
+    # 90 * 0.5 + (60/70 * 100) * 0.3 + 75 * 0.2 = 45 + 25.714 + 15 = 85.714 -> rounds to 86
+    assert score == 86
     assert get_risk_label(score) == "CRITICAL"
 
 
@@ -380,8 +383,8 @@ def test_calculate_risk_score_pydantic():
         geo_country_code="RU"
     )
     score = calculate_risk_score(data)
-    # 40 * 0.5 + (5/10 * 100) * 0.3 + 100 * 0.2 = 20 + 15 + 20 = 55
-    assert score == 55
+    # 40 * 0.5 + (5/10 * 100) * 0.3 + 75 * 0.2 = 20 + 15 + 15 = 50
+    assert score == 50
     assert get_risk_label(score) == "MEDIUM"
 
 
@@ -418,7 +421,7 @@ def test_calculate_risk_score_edge_cases():
         "vt_malicious": 0,
         "country_code": "  cn  "
     }
-    assert calculate_risk_score(data_country_norm) == 20  # 100 * 0.2 = 20
+    assert calculate_risk_score(data_country_norm) == 15  # 75 * 0.2 = 15
 
 
 # --- Enricher Tests ---
@@ -549,9 +552,9 @@ def test_enrich_alert_pydantic(mock_check_hash, mock_check_domain, mock_get_geo,
     # Calculated risk score check:
     # abuse_score = 80 (weight 0.5 -> 40)
     # vt_score = 0 (weight 0.3 -> 0)
-    # country_risk_score = 100 (RU is high risk, weight 0.2 -> 20)
-    # Total = 40 + 0 + 20 = 60
-    assert enriched.enrichment.risk_score == 60.0
+    # country_risk_score = 75 (RU is high risk, weight 0.2 -> 15)
+    # Total = 40 + 0 + 15 = 55
+    assert enriched.enrichment.risk_score == 55.0
 
     # Check network geo enrichment
     assert enriched.network.geo_country == "Russian Federation"
@@ -676,6 +679,331 @@ def test_query_ip_caches_api_response(mock_get):
     assert res2 == res1
 
     clear_cache()
+
+
+# --- IoC Extractor & Enriched Alert Lookups Tests ---
+
+from enrichment.ioc_extractor import extract_iocs
+
+def test_extract_iocs_basic():
+    """Verify that extract_iocs extracts all expected IoCs correctly and filters internal domains."""
+    raw_alert = {
+        "title": "Malware Outbreak",
+        "description": "Download from http://malicious.com/payload.exe. MD5 was 44f23b2c64e6b66723226a27e7f1df6a. Check 8.8.8.8 and local.corp.",
+        "network": {
+            "src_ip": "1.2.3.4",
+            "dst_ip": "5.6.7.8"
+        },
+        "nested": {
+            "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            "internal_domain": "myhome.local",
+            "external_domain": "legit-domain.com"
+        }
+    }
+
+    iocs = extract_iocs(raw_alert)
+    ioc_map = {(ioc.type, ioc.value) for ioc in iocs}
+
+    # Should extract IPs
+    assert ("ip", "1.2.3.4") in ioc_map
+    assert ("ip", "5.6.7.8") in ioc_map
+    assert ("ip", "8.8.8.8") in ioc_map
+
+    # Should extract MD5 and SHA256 file hashes
+    assert ("file_hash_md5", "44f23b2c64e6b66723226a27e7f1df6a") in ioc_map
+    assert ("file_hash_sha256", "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef") in ioc_map
+
+    # Should extract URL
+    assert ("url", "http://malicious.com/payload.exe") in ioc_map
+
+    # Should extract external domains but filter out internal domains
+    assert ("domain", "malicious.com") not in ioc_map  # Part of URL, so not extracted as domain
+    assert ("domain", "legit-domain.com") in ioc_map
+    assert ("domain", "local.corp") not in ioc_map
+    assert ("domain", "myhome.local") not in ioc_map
+
+
+@mock.patch("enrichment.enricher.query_ip")
+@mock.patch("enrichment.enricher.get_geolocation")
+@mock.patch("enrichment.enricher.check_domain")
+@mock.patch("enrichment.enricher.check_hash")
+def test_enrich_alert_multiple_ips(mock_check_hash, mock_check_domain, mock_get_geo, mock_query_ip):
+    """Verify enrich_alert calls lookups for all unique IPs and uses max abuse score."""
+    # Setup mocks
+    def side_effect_query(ip):
+        if ip == "1.1.1.1":
+            return {"abuse_score": 25}
+        if ip == "2.2.2.2":
+            return {"abuse_score": 75}
+        return {"abuse_score": 10}
+    mock_query_ip.side_effect = side_effect_query
+    
+    mock_get_geo.return_value = {
+        "country": "United States",
+        "country_code": "US",
+        "asn": "AS15169",
+    }
+
+    alert_dict = {
+        "title": "Multiple IPs Alert",
+        "network": {
+            "src_ip": "1.1.1.1",
+            "dst_ip": "2.2.2.2"
+        },
+        "description": "Also contact was made to 3.3.3.3"
+    }
+
+    enriched = enrich_alert(alert_dict)
+
+    # All unique IPs should be queried
+    assert mock_query_ip.call_count == 3
+    # Max score of 25, 75, 10 is 75
+    assert enriched["enrichment"]["abuse_score"] == 75
+
+
+@mock.patch("enrichment.enricher.query_ip")
+@mock.patch("enrichment.enricher.get_geolocation")
+@mock.patch("enrichment.enricher.check_domain")
+@mock.patch("enrichment.enricher.check_hash")
+def test_enrich_alert_primary_ip_priority(mock_check_hash, mock_check_domain, mock_get_geo, mock_query_ip):
+    """Verify enrich_alert prioritizes primary IP (src_ip) for geo enrichment and falls back."""
+    def side_effect_geo(ip):
+        if ip == "1.1.1.1":
+            return {"country": "Germany", "country_code": "DE", "asn": "AS123"}
+        if ip == "2.2.2.2":
+            return {"country": "Canada", "country_code": "CA", "asn": "AS456"}
+        return {"error": "lookup failed"}
+    mock_get_geo.side_effect = side_effect_geo
+    mock_query_ip.return_value = {"abuse_score": 0}
+
+    # Case 1: Primary IP has geo data
+    alert_dict_1 = {
+        "title": "Primary Geo Test",
+        "network": {
+            "src_ip": "1.1.1.1",
+            "dst_ip": "2.2.2.2"
+        }
+    }
+    enriched_1 = enrich_alert(alert_dict_1)
+    assert enriched_1["enrichment"]["geo_country_code"] == "DE"
+    assert enriched_1["network"]["geo_country"] == "Germany"
+
+    # Case 2: Primary IP fails, fall back to next IP
+    alert_dict_2 = {
+        "title": "Fallback Geo Test",
+        "network": {
+            "src_ip": "3.3.3.3",
+            "dst_ip": "2.2.2.2"
+        }
+    }
+    enriched_2 = enrich_alert(alert_dict_2)
+    assert enriched_2["enrichment"]["geo_country_code"] == "CA"
+    # Note: network fields represent the primary IP, which in this case got geo from fallback
+    assert enriched_2["network"]["geo_country"] == "Canada"
+
+
+@mock.patch("enrichment.enricher.query_ip")
+@mock.patch("enrichment.enricher.get_geolocation")
+@mock.patch("enrichment.enricher.check_domain")
+@mock.patch("enrichment.enricher.check_hash")
+def test_enrich_alert_multiple_vt_lookups(mock_check_hash, mock_check_domain, mock_get_geo, mock_query_ip):
+    """Verify enrich_alert queries multiple domains/hashes and sums VirusTotal votes."""
+    mock_query_ip.return_value = {"abuse_score": 0}
+    mock_get_geo.return_value = {}
+
+    def side_effect_domain(domain):
+        if domain == "bad1.com":
+            return {"malicious_votes": 3, "harmless_votes": 10, "suspicious_votes": 1}
+        if domain == "bad2.com":
+            return {"malicious_votes": 5, "harmless_votes": 5, "suspicious_votes": 0}
+        return {"malicious_votes": 0, "harmless_votes": 20, "suspicious_votes": 0}
+    mock_check_domain.side_effect = side_effect_domain
+
+    def side_effect_hash(file_hash):
+        return {"malicious_votes": 10, "harmless_votes": 30, "suspicious_votes": 2}
+    mock_check_hash.side_effect = side_effect_hash
+
+    alert_dict = {
+        "title": "Multiple VT IoCs Test",
+        "description": "Domain bad1.com and bad2.com. Hash is 44f23b2c64e6b66723226a27e7f1df6a."
+    }
+
+    enriched = enrich_alert(alert_dict)
+
+    # 2 domains + 1 hash queried
+    assert mock_check_domain.call_count == 2
+    assert mock_check_hash.call_count == 1
+
+    # malicious_votes sum:
+    # bad1.com -> 3
+    # bad2.com -> 5
+    # hash -> 10
+    # Total = 18
+    assert enriched["enrichment"]["vt_malicious"] == 18
+
+    # total votes sum:
+    # bad1.com -> 3 + 10 + 1 = 14
+    # bad2.com -> 5 + 5 + 0 = 10
+    # hash -> 10 + 30 + 2 = 42
+    # Total = 14 + 10 + 42 = 66
+    assert enriched["enrichment"]["vt_total"] == 66
+
+
+# --- Threat Actor Profiling Tests ---
+
+from enrichment.threat_actor import track_and_check_ip, get_attack_history
+
+def test_threat_actor_profiling_tracking():
+    """Verify that track_and_check_ip tracks timestamps and flags repeat attackers correctly."""
+    ip = "192.168.1.55"
+    
+    # 1st attack
+    assert not track_and_check_ip(ip, "2026-07-24T08:00:00Z")
+    assert get_attack_history(ip) == ["2026-07-24T08:00:00Z"]
+
+    # 2nd attack
+    assert not track_and_check_ip(ip, "2026-07-24T08:05:00Z")
+    assert get_attack_history(ip) == ["2026-07-24T08:00:00Z", "2026-07-24T08:05:00Z"]
+
+    # Duplicate timestamp of 2nd attack should not increase count
+    assert not track_and_check_ip(ip, "2026-07-24T08:05:00Z")
+    assert len(get_attack_history(ip)) == 2
+
+    # 3rd attack with new timestamp
+    assert track_and_check_ip(ip, "2026-07-24T08:10:00Z")
+    assert get_attack_history(ip) == [
+        "2026-07-24T08:00:00Z",
+        "2026-07-24T08:05:00Z",
+        "2026-07-24T08:10:00Z"
+    ]
+
+
+def test_risk_scorer_repeat_attacker():
+    """Verify that calculate_risk_score automatically adds +20 to repeat attackers, bounded by 100."""
+    # 1. Base score is 50 (abuse_score=100 * 0.5 = 50), plus 20 -> 70
+    data_repeat = {
+        "abuse_score": 100,
+        "repeat_attacker": True
+    }
+    assert calculate_risk_score(data_repeat) == 70
+
+    # 2. Capped at 100: base score 85 + 20 -> 105 -> 100
+    data_cap = {
+        "abuse_score": 100,
+        "geo_country_code": "RU", # country risk 75 * 0.2 = 15
+        "vt_malicious": 60,
+        "vt_total": 90, # vt score = 66.6 -> 66.6 * 0.3 = 20
+        # Total base = 50 + 20 + 15 = 85
+        "repeat_attacker": True
+    }
+    assert calculate_risk_score(data_cap) == 100
+
+
+def test_country_risk_weightings():
+    """Verify that different countries receive their respective tiered weight bonuses."""
+    # KP: Country risk 100.0 -> contributes 20 to score (0.2 weight)
+    data_kp = {"abuse_score": 0, "geo_country_code": "KP"}
+    assert calculate_risk_score(data_kp) == 20
+
+    # RU: Country risk 75.0 -> contributes 15 to score (0.2 weight)
+    data_ru = {"abuse_score": 0, "geo_country_code": "RU"}
+    assert calculate_risk_score(data_ru) == 15
+
+    # CN: Country risk 75.0 -> contributes 15 to score (0.2 weight)
+    data_cn = {"abuse_score": 0, "geo_country_code": "CN"}
+    assert calculate_risk_score(data_cn) == 15
+
+    # IR: Country risk 50.0 -> contributes 10 to score (0.2 weight)
+    data_ir = {"abuse_score": 0, "geo_country_code": "IR"}
+    assert calculate_risk_score(data_ir) == 10
+
+    # SY: Country risk 50.0 -> contributes 10 to score (0.2 weight)
+    data_sy = {"abuse_score": 0, "geo_country_code": "SY"}
+    assert calculate_risk_score(data_sy) == 10
+
+    # Any other country: Country risk 0.0 -> contributes 0 to score (0.2 weight)
+    data_other = {"abuse_score": 0, "geo_country_code": "US"}
+    assert calculate_risk_score(data_other) == 0
+
+
+@mock.patch("enrichment.enricher.query_ip")
+@mock.patch("enrichment.enricher.get_geolocation")
+@mock.patch("enrichment.enricher.check_domain")
+@mock.patch("enrichment.enricher.check_hash")
+def test_enrich_alert_repeat_attacker_dict(mock_check_hash, mock_check_domain, mock_get_geo, mock_query_ip):
+    """Verify dict-based alert enrichment with repeat attacker logic."""
+    mock_query_ip.return_value = {"abuse_score": 0}
+    mock_get_geo.return_value = {"country": "United States", "country_code": "US"}
+    mock_check_domain.return_value = {}
+    mock_check_hash.return_value = {}
+
+    ip = "192.168.5.10"
+    
+    # Send 3 dict alerts sequentially
+    alert1 = {
+        "title": "Alert 1",
+        "detected_at": "2026-07-24T09:00:00Z",
+        "network": {"src_ip": ip}
+    }
+    enriched1 = enrich_alert(alert1)
+    assert not enriched1["enrichment"]["repeat_attacker"]
+    assert "REPEAT_ATTACKER" not in enriched1["enrichment"]["threat_feeds"]
+    assert enriched1["enrichment"]["risk_score"] == 0
+
+    alert2 = {
+        "title": "Alert 2",
+        "detected_at": "2026-07-24T09:05:00Z",
+        "network": {"src_ip": ip}
+    }
+    enriched2 = enrich_alert(alert2)
+    assert not enriched2["enrichment"]["repeat_attacker"]
+    assert "REPEAT_ATTACKER" not in enriched2["enrichment"]["threat_feeds"]
+    assert enriched2["enrichment"]["risk_score"] == 0
+
+    alert3 = {
+        "title": "Alert 3",
+        "detected_at": "2026-07-24T09:10:00Z",
+        "network": {"src_ip": ip}
+    }
+    enriched3 = enrich_alert(alert3)
+    assert enriched3["enrichment"]["repeat_attacker"]
+    assert "REPEAT_ATTACKER" in enriched3["enrichment"]["threat_feeds"]
+    # Base score 0 + 20 = 20
+    assert enriched3["enrichment"]["risk_score"] == 20
+
+
+@mock.patch("enrichment.enricher.query_ip")
+@mock.patch("enrichment.enricher.get_geolocation")
+@mock.patch("enrichment.enricher.check_domain")
+@mock.patch("enrichment.enricher.check_hash")
+def test_enrich_alert_repeat_attacker_pydantic(mock_check_hash, mock_check_domain, mock_get_geo, mock_query_ip):
+    """Verify Pydantic alert enrichment with repeat attacker logic."""
+    mock_query_ip.return_value = {"abuse_score": 40} # base score 20
+    mock_get_geo.return_value = {"country": "United States", "country_code": "US"}
+    mock_check_domain.return_value = {}
+    mock_check_hash.return_value = {}
+
+    ip = "192.168.5.20"
+    
+    # Send 3 Pydantic alerts sequentially
+    for i in range(3):
+        alert = NormalizedAlert(
+            title=f"Alert {i+1}",
+            detected_at=datetime(2026, 7, 24, 10, i * 5, tzinfo=timezone.utc),
+            network=NetworkContext(src_ip=ip)
+        )
+        enriched = enrich_alert(alert)
+        if i < 2:
+            assert not enriched.enrichment.repeat_attacker
+            assert "REPEAT_ATTACKER" not in enriched.enrichment.threat_feeds
+            assert enriched.enrichment.risk_score == 20
+        else:
+            assert enriched.enrichment.repeat_attacker
+            assert "REPEAT_ATTACKER" in enriched.enrichment.threat_feeds
+            # Base score 20 + 20 = 40
+            assert enriched.enrichment.risk_score == 40
+
+
 
 
 

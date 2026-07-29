@@ -1,0 +1,20 @@
+{
+  "_comment": "Simulated C2 beaconing alert with high AbuseIPDB score",
+  "title": "Command and Control Beaconing Detected",
+  "description": "System detected periodic beaconing behavior to suspicious IP address: 185.234.218.90",
+  "type": "lateral_movement",
+  "severity": "high",
+  "rule_id": "C2-BEACON-99",
+  "timestamp": "2026-07-25T08:05:00Z",
+  "source": "Network IDS Sensor",
+  "network": {
+    "src_ip": "185.234.218.90",
+    "dst_ip": "10.0.1.150",
+    "src_port": 443,
+    "dst_port": 51221,
+    "protocol": "tcp"
+  },
+  "host": {
+    "hostname": "prod-app-server-02"
+  }
+}

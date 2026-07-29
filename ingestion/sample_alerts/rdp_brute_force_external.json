@@ -1,0 +1,20 @@
+{
+  "_comment": "Simulated RDP brute-force event from external IP",
+  "title": "RDP Brute Force Attempt",
+  "description": "Windows Security Event 4625: Audit Failure. 85 failed logon attempts for administrator from IP: 185.234.218.75",
+  "type": "brute_force",
+  "severity": "high",
+  "rule_id": "WIN-RDP-BF-01",
+  "timestamp": "2026-07-25T08:20:00Z",
+  "source": "Active Directory Security Log",
+  "network": {
+    "src_ip": "185.234.218.75",
+    "dst_ip": "10.0.3.50",
+    "src_port": 59321,
+    "dst_port": 3389,
+    "protocol": "tcp"
+  },
+  "host": {
+    "hostname": "win-jumpbox-01"
+  }
+}
