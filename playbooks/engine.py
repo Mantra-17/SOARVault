@@ -1,10 +1,74 @@
-import time
+import ast
 import json
+import time
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 from playbooks.actions import ACTIONS_MAP, ActionResult
 from playbooks.report import generate_containment_report
 from ingestion.database import get_redis_client
+
+
+def _evaluate_ast_expression(expr_str: str, names: Dict[str, Any]) -> bool:
+    """
+    Safely evaluate a boolean expression string against a dictionary of names
+    using Python's builtin AST parser (zero eval/exec).
+    """
+    tree = ast.parse(expr_str, mode="eval")
+
+    def _visit(node):
+        if isinstance(node, ast.Expression):
+            return _visit(node.body)
+        elif isinstance(node, ast.Name):
+            return names.get(node.id)
+        elif isinstance(node, ast.Constant):
+            return node.value
+        elif isinstance(node, ast.UnaryOp):
+            val = _visit(node.operand)
+            if isinstance(node.op, ast.Not):
+                return not val
+            elif isinstance(node.op, ast.USub):
+                return -val
+            elif isinstance(node.op, ast.UAdd):
+                return +val
+        elif isinstance(node, ast.BoolOp):
+            if isinstance(node.op, ast.And):
+                for val in node.values:
+                    if not _visit(val):
+                        return False
+                return True
+            elif isinstance(node.op, ast.Or):
+                for val in node.values:
+                    if _visit(val):
+                        return True
+                return False
+        elif isinstance(node, ast.Compare):
+            left = _visit(node.left)
+            for op, comparator in zip(node.ops, node.comparators):
+                right = _visit(comparator)
+                res = False
+                if isinstance(op, ast.Eq):
+                    res = (left == right)
+                elif isinstance(op, ast.NotEq):
+                    res = (left != right)
+                elif isinstance(op, ast.Gt):
+                    res = (left > right)
+                elif isinstance(op, ast.GtE):
+                    res = (left >= right)
+                elif isinstance(op, ast.Lt):
+                    res = (left < right)
+                elif isinstance(op, ast.LtE):
+                    res = (left <= right)
+                elif isinstance(op, ast.In):
+                    res = (left in right if right else False)
+                elif isinstance(op, ast.NotIn):
+                    res = (left not in right if right else True)
+                if not res:
+                    return False
+                left = right
+            return True
+        raise ValueError(f"Unsupported expression node: {type(node).__name__}")
+
+    return bool(_visit(tree.body))
 
 class PlaybookEngine:
     """
@@ -73,20 +137,23 @@ class PlaybookEngine:
         return playbooks
 
     def evaluate_trigger(self, trigger_str: str, context: Dict[str, Any]) -> bool:
-        """Safely evaluates boolean expression triggers against alert context."""
+        """Safely evaluates boolean expression triggers against alert context using AST parsing."""
+        if not trigger_str or not trigger_str.strip():
+            return False
+
         safe_locals = {
             "risk_score": context.get("risk_score", 0),
             "ioc_type": context.get("ioc_type", ""),
-            "severity": context.get("severity", "").lower(),
+            "severity": str(context.get("severity", "")).lower(),
             "source": context.get("source", ""),
             "rule_name": context.get("rule_name", ""),
             "title": context.get("title", ""),
         }
+
         try:
-            # Safely evaluate condition using restricted globals/locals
-            return bool(eval(trigger_str, {"__builtins__": None}, safe_locals))
+            return _evaluate_ast_expression(trigger_str, safe_locals)
         except Exception as e:
-            print(f"[*] Trigger evaluation error for '{trigger_str}': {e}")
+            print(f"[*] Safe trigger evaluation error for '{trigger_str}': {e}")
             return False
 
     def select_playbook(self, alert: Dict[str, Any]) -> Optional[Dict[str, Any]]:

@@ -203,13 +203,21 @@ def login():
         "permissions": role["permissions"],
     })
 
+def _get_request_role() -> str:
+    """
+    Retrieve authenticated user's role from server-side session.
+    Falls back to X-Role header only if session is unpopulated (for API client compatibility).
+    """
+    return session.get("role") or request.headers.get("X-Role", "analyst")
+
+
 @api.get("/integrations")
 def integrations():
     return jsonify(get_integrations_from_redis())
 
 @api.put("/playbooks/<playbook_id>")
 def update_playbook(playbook_id):
-    role = request.headers.get("X-Role", "analyst")
+    role = _get_request_role()
     if not has_permission(role, "edit"):
         return jsonify({"error": "forbidden — admin role required to edit playbooks"}), 403
 
@@ -228,7 +236,7 @@ def update_playbook(playbook_id):
 
 @api.post("/approve/<incident_id>")
 def approve_incident(incident_id):
-    role = request.headers.get("X-Role", "analyst")
+    role = _get_request_role()
     if not has_permission(role, "approve"):
         return jsonify({"error": "forbidden — senior_analyst or admin role required"}), 403
 
@@ -249,7 +257,7 @@ def approve_incident(incident_id):
 
 @api.post("/reject/<incident_id>")
 def reject_incident(incident_id):
-    role = request.headers.get("X-Role", "analyst")
+    role = _get_request_role()
     if not has_permission(role, "approve"):
         return jsonify({"error": "forbidden — senior_analyst or admin role required"}), 403
 
