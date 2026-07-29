@@ -205,6 +205,8 @@ class NormalizedAlert(BaseModel):
             return datetime.fromtimestamp(v, tz=timezone.utc)
         if isinstance(v, str):
             s = v.strip().replace(" ", "T")
+            # Handle slash-separated dates from some SIEMs: 2026/07/20T10:10:00
+            s = s.replace("/", "-", 2)
             if s.endswith("Z"):
                 s = s[:-1] + "+00:00"
             try:
