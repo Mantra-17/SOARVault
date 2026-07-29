@@ -12,9 +12,13 @@ SAMPLE_DIR = Path(__file__).parent.parent / "ingestion" / "sample_alerts"
 def load_sample_alert(filename: str) -> dict:
     filepath = SAMPLE_DIR / filename
     if not filepath.exists():
-        # Fallback to minimal payload for testing if sample doesn't exist locally
+        # Check alternative filename
+        alt_name = "malware_lockbit.json" if "malware" in filename else filename
+        filepath = SAMPLE_DIR / alt_name
+
+    if not filepath.exists():
         return {
-            "id": f"test_{int(time.time())}",
+            "id": f"test_{time.time_ns()}",
             "source": "Test",
             "type": "brute_force",
             "severity": "high",
@@ -30,6 +34,16 @@ def test_pipeline_under_5_seconds():
     takes less than 5 seconds each.
     """
     async def _run():
+        # Clear any prior dedup keys stored in Redis from earlier test files
+        try:
+            from ingestion.database import get_redis_client
+            db = get_redis_client()
+            keys = db.keys("dedup:*")
+            if keys:
+                db.delete(*keys)
+        except Exception:
+            pass
+
         orchestrator = IncidentOrchestrator()
         
         # 1. Test Brute Force Alert

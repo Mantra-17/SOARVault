@@ -56,3 +56,18 @@
 {"timestamp": "2026-07-29T07:46:21.742526+00:00", "event_type": "alert_normalized", "actor": "normalizer", "details": {"alert_id": "2d6c61fb-de95-4351-9163-a51c5bbb8914", "type": "brute_force"}}
 {"timestamp": "2026-07-29T07:46:22.256635+00:00", "event_type": "alert_ingested", "actor": "orchestrator", "details": {"alert_hash": "aff28aca8b83b75638f531e867cd4ff4f86e6a3a506027e6b6dc43027c0ab22d"}}
 {"timestamp": "2026-07-29T07:46:22.257472+00:00", "event_type": "alert_normalized", "actor": "normalizer", "details": {"alert_id": "59abb6f3-e8ff-401b-8fab-aa7fab953a04", "type": "brute_force"}}
+{"timestamp": "2026-07-29T07:48:40.710292+00:00", "event_type": "alert_duplicate", "actor": "orchestrator", "details": {"alert_hash": "ed7698c373cee43f0324ef36193fbfefbd86f5075f4819391cac7d6b6123e341"}}
+{"timestamp": "2026-07-29T07:48:40.712688+00:00", "event_type": "alert_duplicate", "actor": "orchestrator", "details": {"alert_hash": "09a2988ada1a3ef92a8731085e7e3cd06cb6ce6caaad17fe50d0e3b7358ec484"}}
+{"timestamp": "2026-07-29T07:48:40.713046+00:00", "event_type": "alert_duplicate", "actor": "orchestrator", "details": {"alert_hash": "eeede4c091434e2f8bad423e69ae75bca99464028d9960fdb928507f4617256f"}}
+{"timestamp": "2026-07-29T07:48:40.716400+00:00", "event_type": "alert_duplicate", "actor": "orchestrator", "details": {"alert_hash": "eb9d22db5f75f3fa02e47393f9b775072e11adaa8a09ae5f469e9eeb9a537a50"}}
+{"timestamp": "2026-07-29T07:49:17.260974+00:00", "event_type": "alert_duplicate", "actor": "orchestrator", "details": {"alert_hash": "ed7698c373cee43f0324ef36193fbfefbd86f5075f4819391cac7d6b6123e341"}}
+{"timestamp": "2026-07-29T07:49:17.262866+00:00", "event_type": "alert_duplicate", "actor": "orchestrator", "details": {"alert_hash": "09a2988ada1a3ef92a8731085e7e3cd06cb6ce6caaad17fe50d0e3b7358ec484"}}
+{"timestamp": "2026-07-29T07:49:17.263201+00:00", "event_type": "alert_duplicate", "actor": "orchestrator", "details": {"alert_hash": "eeede4c091434e2f8bad423e69ae75bca99464028d9960fdb928507f4617256f"}}
+{"timestamp": "2026-07-29T07:49:17.265569+00:00", "event_type": "alert_duplicate", "actor": "orchestrator", "details": {"alert_hash": "eb9d22db5f75f3fa02e47393f9b775072e11adaa8a09ae5f469e9eeb9a537a50"}}
+{"timestamp": "2026-07-29T07:49:51.183670+00:00", "event_type": "alert_duplicate", "actor": "orchestrator", "details": {"alert_hash": "ed7698c373cee43f0324ef36193fbfefbd86f5075f4819391cac7d6b6123e341"}}
+{"timestamp": "2026-07-29T07:49:51.187153+00:00", "event_type": "alert_duplicate", "actor": "orchestrator", "details": {"alert_hash": "09a2988ada1a3ef92a8731085e7e3cd06cb6ce6caaad17fe50d0e3b7358ec484"}}
+{"timestamp": "2026-07-29T07:49:51.188341+00:00", "event_type": "alert_duplicate", "actor": "orchestrator", "details": {"alert_hash": "eeede4c091434e2f8bad423e69ae75bca99464028d9960fdb928507f4617256f"}}
+{"timestamp": "2026-07-29T07:49:51.194393+00:00", "event_type": "alert_ingested", "actor": "orchestrator", "details": {"alert_hash": "eb9d22db5f75f3fa02e47393f9b775072e11adaa8a09ae5f469e9eeb9a537a50"}}
+{"timestamp": "2026-07-29T07:49:51.194993+00:00", "event_type": "alert_normalized", "actor": "normalizer", "details": {"alert_id": "2c05876c-dc24-466f-b876-77964a58b906", "type": "brute_force"}}
+{"timestamp": "2026-07-29T07:49:51.728082+00:00", "event_type": "alert_ingested", "actor": "orchestrator", "details": {"alert_hash": "703d36dfbd85f782e55b535625440bfb892bdea110479b40ac766923163ea711"}}
+{"timestamp": "2026-07-29T07:49:51.728568+00:00", "event_type": "alert_normalized", "actor": "normalizer", "details": {"alert_id": "1b9fcd51-0925-4138-a5c8-b719d911e582", "type": "malware"}}

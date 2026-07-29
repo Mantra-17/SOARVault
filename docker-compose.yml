@@ -1,28 +1,65 @@
 version: '3.8'
 
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: soarvault-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - soar_network
+
   soar-api:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: soarvault-api
+    command: ["uvicorn", "ingestion.main:app", "--host", "0.0.0.0", "--port", "8000"]
     ports:
       - "8000:8000"
     environment:
       - ENVIRONMENT=production
       - LOG_LEVEL=info
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      redis:
+        condition: service_healthy
     restart: unless-stopped
-    # If other dependencies like Redis or Postgres are added, uncomment below:
-    # depends_on:
-    #   - redis
-    #   - db
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
     networks:
       - soar_network
 
-# networks:
-#   soar_network:
-#     driver: bridge
+  soar-dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: soarvault-dashboard
+    command: ["python", "frontend/app.py"]
+    ports:
+      - "5000:5000"
+    environment:
+      - ENVIRONMENT=production
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - soar_network
 
 networks:
   soar_network:
     name: soarvault_network
+    driver: bridge
