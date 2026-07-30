@@ -81,3 +81,13 @@
 {"timestamp": "2026-07-29T07:50:58.975026+00:00", "event_type": "alert_normalized", "actor": "normalizer", "details": {"alert_id": "9e31ae3f-b85d-4a38-b2a1-e0863f286930", "type": "brute_force"}}
 {"timestamp": "2026-07-29T07:50:59.453935+00:00", "event_type": "alert_ingested", "actor": "orchestrator", "details": {"alert_hash": "703d36dfbd85f782e55b535625440bfb892bdea110479b40ac766923163ea711"}}
 {"timestamp": "2026-07-29T07:50:59.454946+00:00", "event_type": "alert_normalized", "actor": "normalizer", "details": {"alert_id": "ddb2d64d-b647-45d9-98a9-e5f5fc42ddbc", "type": "malware"}}
+{"timestamp": "2026-07-30T10:51:45.470368+00:00", "event_type": "alert_ingested", "actor": "orchestrator", "details": {"alert_hash": "ed7698c373cee43f0324ef36193fbfefbd86f5075f4819391cac7d6b6123e341"}}
+{"timestamp": "2026-07-30T10:51:45.470661+00:00", "event_type": "alert_normalized", "actor": "normalizer", "details": {"alert_id": "499a41af-a610-4d01-9cd1-76eb98ec7146", "type": "unknown"}}
+{"timestamp": "2026-07-30T10:51:45.477907+00:00", "event_type": "alert_ingested", "actor": "orchestrator", "details": {"alert_hash": "09a2988ada1a3ef92a8731085e7e3cd06cb6ce6caaad17fe50d0e3b7358ec484"}}
+{"timestamp": "2026-07-30T10:51:45.478037+00:00", "event_type": "alert_normalized", "actor": "normalizer", "details": {"alert_id": "29ad963a-fde8-4eb3-9b29-1197e7236b1c", "type": "unknown"}}
+{"timestamp": "2026-07-30T10:51:45.481338+00:00", "event_type": "alert_ingested", "actor": "orchestrator", "details": {"alert_hash": "eeede4c091434e2f8bad423e69ae75bca99464028d9960fdb928507f4617256f"}}
+{"timestamp": "2026-07-30T10:51:45.481420+00:00", "event_type": "alert_normalized", "actor": "normalizer", "details": {"alert_id": "e0295497-8c63-42d1-9053-79b1c7f731b9", "type": "unknown"}}
+{"timestamp": "2026-07-30T10:51:45.487354+00:00", "event_type": "alert_ingested", "actor": "orchestrator", "details": {"alert_hash": "eb9d22db5f75f3fa02e47393f9b775072e11adaa8a09ae5f469e9eeb9a537a50"}}
+{"timestamp": "2026-07-30T10:51:45.487497+00:00", "event_type": "alert_normalized", "actor": "normalizer", "details": {"alert_id": "fc29d362-42a1-4c9c-b681-4cb617ef4c51", "type": "brute_force"}}
+{"timestamp": "2026-07-30T10:51:46.016634+00:00", "event_type": "alert_ingested", "actor": "orchestrator", "details": {"alert_hash": "703d36dfbd85f782e55b535625440bfb892bdea110479b40ac766923163ea711"}}
+{"timestamp": "2026-07-30T10:51:46.017303+00:00", "event_type": "alert_normalized", "actor": "normalizer", "details": {"alert_id": "6ca04f75-9015-4389-85b6-de3475c0a195", "type": "malware"}}
