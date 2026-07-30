@@ -1,38 +1,124 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Sign in — SOAR Console</title>
-<link rel="stylesheet" href="css/styles.css" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SOARVault — Incident Containment Portal Authentication</title>
+  <link rel="stylesheet" href="css/main.css" />
+  <link rel="stylesheet" href="css/components.css" />
+  <style>
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: var(--bg-gradient);
+    }
+    .login-container {
+      width: 420px;
+      max-width: 90vw;
+    }
+    .login-header {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 18px;
+    }
+    .form-group label {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .form-input {
+      background: rgba(22, 33, 58, 0.6);
+      border: 1px solid var(--border-glass);
+      color: #fff;
+      font-family: var(--font-sans);
+      font-size: 13.5px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      outline: none;
+      transition: border-color 0.2s ease;
+    }
+    .form-input:focus {
+      border-color: var(--cyber-cyan);
+      box-shadow: var(--glow-cyan);
+    }
+    .btn-submit {
+      width: 100%;
+      background: linear-gradient(90deg, var(--cyber-cyan), var(--cyber-blue));
+      color: #000;
+      font-family: var(--font-header);
+      font-size: 14px;
+      font-weight: 700;
+      padding: 12px;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .btn-submit:hover {
+      transform: translateY(-1px);
+      box-shadow: var(--glow-cyan);
+    }
+    .login-demo-box {
+      margin-top: 24px;
+      padding: 14px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px dashed var(--border-glass);
+      border-radius: 10px;
+      font-size: 11.5px;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+    .login-demo-box code {
+      font-family: var(--font-mono);
+      color: var(--cyber-cyan);
+    }
+  </style>
 </head>
-<body class="login-body">
+<body>
 
-  <div class="login-card">
-    <div class="brand brand-center">
-      <span class="brand-mark">◈</span> 
-      <div class="brand-text">
-        <strong>SOAR Console</strong>
-        <span>Incident Containment Engine</span>
+  <div class="login-container">
+    <div class="glass-panel">
+      <div class="login-header">
+        <div class="brand" style="justify-content: center; margin-bottom: 12px;">
+          <div class="brand-icon">◈</div>
+          <div class="brand-title" style="text-align: left;">
+            <strong>SOARVault</strong>
+            <span>Containment Console</span>
+          </div>
+        </div>
+        <p style="font-size: 12.5px; color: var(--text-muted);">Sign in to access the SOC Incident Containment Console</p>
       </div>
-    </div>
 
-    <form id="login-form">
-      <label for="username">Username</label>
-      <input type="text" id="username" name="username" placeholder="asha.analyst, rohit.senior, or admin" autocomplete="username" required />
+      <form id="login-form">
+        <div class="form-group">
+          <label for="username">Username</label>
+          <input type="text" id="username" name="username" class="form-input" placeholder="asha.analyst, rohit.senior, admin" required />
+        </div>
 
-      <label for="password">Password</label>
-      <input type="password" id="password" name="password" placeholder="demo123" autocomplete="current-password" required />
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" class="form-input" placeholder="••••••••" required />
+        </div>
 
-      <button type="submit" id="login-btn">Sign in</button>
-      <p id="login-error" class="login-error"></p>
-    </form>
+        <button type="submit" id="login-btn" class="btn-submit">Sign In to Command Center</button>
+        <p id="login-error" style="color: var(--cyber-crimson); font-size: 12px; margin-top: 12px; text-align: center;"></p>
+      </form>
 
-    <div class="login-hint">
-      <p>Demo accounts</p>
-      <code>asha.analyst / demo123</code> — Analyst<br />
-<code>rohit.senior / demo123</code> — Senior Analyst<br />
-<code>admin / demo123</code> — Admin
+      <div class="login-demo-box">
+        <strong style="color: #fff; display: block; margin-bottom: 4px;">Demo Authentication Credentials</strong>
+        <code>asha.analyst / demo123</code> — Analyst (View Only)<br />
+        <code>rohit.senior / demo123</code> — Senior Analyst (Approve)<br />
+        <code>admin / demo123</code> — Admin (Full Access)
+      </div>
     </div>
   </div>
 

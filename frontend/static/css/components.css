@@ -1,0 +1,385 @@
+/* 
+ * SOARVault UI Components — components.css
+ * Cyber Cards, Badges, Risk Score Meters, Modals, Timelines
+ */
+
+/* Glass Cards & Panels */
+.glass-panel {
+  background: var(--surface-glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-glass);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: var(--shadow-glass);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.glass-panel:hover {
+  border-color: var(--border-active);
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.panel-header h2 {
+  font-family: var(--font-header);
+  font-size: 17px;
+  font-weight: 600;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-badge {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+/* KPI Strip Grid */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: 240px repeat(3, 1fr);
+  gap: 20px;
+  margin-bottom: 32px;
+}
+
+.kpi-card {
+  background: var(--surface-glass);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border-glass);
+  border-radius: 16px;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--cyber-cyan), transparent);
+}
+
+.kpi-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-active);
+}
+
+.kpi-card.emerald::before { background: linear-gradient(90deg, var(--cyber-emerald), transparent); }
+.kpi-card.amber::before { background: linear-gradient(90deg, var(--cyber-amber), transparent); }
+.kpi-card.purple::before { background: linear-gradient(90deg, var(--cyber-purple), transparent); }
+
+.kpi-label {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.kpi-number {
+  font-family: var(--font-mono);
+  font-size: 32px;
+  font-weight: 700;
+  color: #fff;
+  margin: 8px 0;
+  letter-spacing: -0.02em;
+}
+
+.kpi-subtitle {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+/* MTTR Circular Ring Gauge */
+.mttr-gauge-card {
+  background: var(--surface-glass);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border-glass);
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.gauge-svg {
+  width: 100px;
+  height: 100px;
+  transform: rotate(-90deg);
+}
+
+.gauge-track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 10;
+}
+
+.gauge-fill {
+  fill: none;
+  stroke: var(--cyber-emerald);
+  stroke-width: 10;
+  stroke-linecap: round;
+  stroke-dasharray: 377;
+  stroke-dashoffset: 377;
+  transition: stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.3s ease;
+}
+
+.gauge-content {
+  position: absolute;
+  top: 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.gauge-value {
+  font-family: var(--font-mono);
+  font-size: 24px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.gauge-unit {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.gauge-target {
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.gauge-target strong {
+  color: var(--cyber-emerald);
+}
+
+/* Severity Badges & Chips */
+.badge-sev {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.badge-sev.critical {
+  background: rgba(255, 51, 102, 0.15);
+  color: var(--sev-critical);
+  border: 1px solid rgba(255, 51, 102, 0.4);
+}
+
+.badge-sev.high {
+  background: rgba(255, 153, 0, 0.15);
+  color: var(--sev-high);
+  border: 1px solid rgba(255, 153, 0, 0.4);
+}
+
+.badge-sev.medium {
+  background: rgba(255, 204, 0, 0.15);
+  color: var(--sev-medium);
+  border: 1px solid rgba(255, 204, 0, 0.4);
+}
+
+.badge-sev.low {
+  background: rgba(0, 255, 157, 0.15);
+  color: var(--sev-low);
+  border: 1px solid rgba(0, 255, 157, 0.4);
+}
+
+/* Incident Table */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-glass);
+}
+
+.table-row {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  transition: background 0.15s ease;
+  cursor: pointer;
+}
+
+.table-row:hover {
+  background: var(--surface-hover);
+}
+
+.table-row td {
+  padding: 14px 16px;
+  vertical-align: middle;
+}
+
+.case-id-cell {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--cyber-cyan);
+  font-weight: 600;
+}
+
+.case-title-cell {
+  font-weight: 500;
+  color: var(--text-main);
+}
+
+.ioc-subtext {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* Risk Score Fill Bar */
+.risk-meter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 120px;
+}
+
+.risk-bar-track {
+  flex: 1;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.risk-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.5s ease;
+}
+
+.risk-score-num {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  min-width: 24px;
+}
+
+/* Incident Timeline Component */
+.timeline-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: relative;
+  padding-left: 20px;
+  margin-top: 16px;
+}
+
+.timeline-container::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  background: var(--border-glass);
+}
+
+.timeline-step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.timeline-dot {
+  position: absolute;
+  left: -20px;
+  top: 4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--cyber-cyan);
+  box-shadow: var(--glow-cyan);
+}
+
+.timeline-step-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+  display: flex;
+  justify-content: space-between;
+}
+
+.timeline-step-time {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.timeline-step-detail {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Detail Drawer Modal */
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  z-index: 1000;
+  display: flex;
+  justify-content: flex-end;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+.drawer-backdrop.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.drawer-content {
+  width: 600px;
+  max-width: 90vw;
+  background: var(--surface-modal);
+  border-left: 1px solid var(--border-glass);
+  height: 100%;
+  padding: 32px;
+  overflow-y: auto;
+  transform: translateX(100%);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: -20px 0 50px rgba(0, 0, 0, 0.8);
+}
+
+.drawer-backdrop.is-open .drawer-content {
+  transform: translateX(0);
+}
