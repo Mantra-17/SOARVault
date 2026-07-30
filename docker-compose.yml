@@ -1,11 +1,9 @@
-version: '3.8'
-
 services:
   redis:
     image: redis:7-alpine
     container_name: soarvault-redis
     ports:
-      - "6379:6379"
+      - "6380:6379"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -26,6 +24,7 @@ services:
     environment:
       - ENVIRONMENT=production
       - LOG_LEVEL=info
+      - PYTHONPATH=/app
       - REDIS_HOST=redis
       - REDIS_PORT=6379
     depends_on:
@@ -47,11 +46,13 @@ services:
     container_name: soarvault-dashboard
     command: ["python", "frontend/app.py"]
     ports:
-      - "5000:5000"
+      - "5050:5000"
     environment:
       - ENVIRONMENT=production
+      - PYTHONPATH=/app
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - PORT=5000
     depends_on:
       redis:
         condition: service_healthy
