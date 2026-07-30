@@ -25,6 +25,7 @@ def create_case(alert: dict, actions: list) -> str:
         **alert,  # title, severity, ioc, ioc_type, risk_score, etc.
         "actions": actions,
         "status": "open",
+        "timeline": alert.get("timeline", []),
         "created_at": datetime.utcnow().isoformat(),
     }
     db.set(f"case:{case_id}", json.dumps(case))

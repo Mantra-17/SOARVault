@@ -1,7 +1,9 @@
 import asyncio
 import httpx
 import json
+import os
 import random
+import threading
 import time
 from datetime import datetime, timezone
 from typing import Dict, Any
@@ -82,6 +84,25 @@ class AlertSimulator:
             self.generate_data_exfiltration
         ]
         return random.choice(generators)()
+
+def start_simulator(interval: float = 15.0):
+    """Start background thread generating periodic simulated alerts."""
+    def _run():
+        sim = AlertSimulator()
+        api_url = os.getenv(
+            "INGESTION_API_URL",
+            "http://soar-api:8000/webhook/alert" if os.getenv("ENVIRONMENT") == "production" else "http://127.0.0.1:8000/webhook/alert"
+        )
+        while True:
+            time.sleep(interval)
+            try:
+                alert = sim.get_random_alert()
+                httpx.post(api_url, json=alert, timeout=3.0)
+            except Exception:
+                pass
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
 
 async def blast_server(num_requests: int = 100):
     """Blast the FastAPI server with generated alerts."""
